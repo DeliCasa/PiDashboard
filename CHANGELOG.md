@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-01-07
+
+### Fixed
+- Fixed Network Diagnostics showing "Disconnected" for all services
+  - Tailscale: Transform `backend_state` to `connected`, `tailscale_ip` to `ip`
+  - BridgeServer: Extract nested `status.connected` and `status.url` to flat format
+  - MQTT: Graceful handling when endpoint doesn't exist
+- Fixed Config section black screen crash
+  - Backend returns nested `{sections: [{name, items}]}` structure
+  - Frontend now correctly transforms to flat `ConfigEntry[]` array
+
+### Changed
+- Network API now transforms backend responses to expected frontend format
+- Config API maps section names to ConfigCategory (Server/Bridge→system, MQTT→mqtt, etc.)
+
+---
+
 ## [1.1.1] - 2026-01-07
 
 ### Fixed

@@ -7,42 +7,104 @@ import { apiClient } from './client';
 import type { TailscaleStatus } from '@/domain/types/entities';
 import type { PingResponse } from '@/domain/types/api';
 
+// Backend response types (different from frontend types)
+interface TailscaleApiResponse {
+  backend_state: string;
+  tailscale_ip: string;
+  hostname: string;
+  tailnet?: string;
+  peers?: Array<{
+    id: string;
+    hostname: string;
+    tailscale_ip: string;
+    online: boolean;
+    is_bridge_server?: boolean;
+  }>;
+  funnel_status?: {
+    enabled: boolean;
+    exposed_ports?: Record<string, string>;
+  };
+  needs_login?: boolean;
+}
+
+interface BridgeApiResponse {
+  status?: {
+    configured: boolean;
+    connected: boolean;
+    url?: string;
+  };
+  success: boolean;
+}
+
 /**
  * Network API endpoints
  */
 export const networkApi = {
   /**
    * Get Tailscale VPN status
+   * Transforms backend response to frontend TailscaleStatus type
    */
-  getTailscaleStatus: () =>
-    apiClient.get<TailscaleStatus>('/dashboard/tailscale/status'),
+  getTailscaleStatus: async (): Promise<TailscaleStatus> => {
+    const response = await apiClient.get<TailscaleApiResponse>('/dashboard/tailscale/status');
+
+    // Transform backend response to frontend format
+    return {
+      connected: response.backend_state === 'Running',
+      ip: response.tailscale_ip || undefined,
+      hostname: response.hostname,
+      peers: response.peers?.map(p => ({
+        name: p.hostname,
+        ip: p.tailscale_ip,
+        online: p.online,
+      })),
+    };
+  },
 
   /**
    * Ping a host to test connectivity
    */
   ping: (host: string, count = 3) =>
-    apiClient.post<PingResponse>('/dashboard/network/ping', { host, count }),
+    apiClient.post<PingResponse>(`/dashboard/tailscale/ping/${encodeURIComponent(host)}`, { count }),
 
   /**
    * Get MQTT broker status
+   * Note: MQTT status endpoint may not exist - returns disconnected state on error
    */
-  getMqttStatus: () =>
-    apiClient.get<{
-      connected: boolean;
-      broker?: string;
-      port?: number;
-      clientId?: string;
-      latency_ms?: number;
-    }>('/dashboard/mqtt/status'),
+  getMqttStatus: async (): Promise<{
+    connected: boolean;
+    broker?: string;
+    port?: number;
+    clientId?: string;
+    latency_ms?: number;
+  }> => {
+    try {
+      return await apiClient.get('/dashboard/mqtt/status');
+    } catch {
+      // MQTT endpoint may not exist
+      return { connected: false };
+    }
+  },
 
   /**
    * Get BridgeServer connection status
+   * Transforms backend response to frontend format
    */
-  getBridgeServerStatus: () =>
-    apiClient.get<{
-      connected: boolean;
-      url?: string;
-      latency_ms?: number;
-      version?: string;
-    }>('/dashboard/bridgeserver/status'),
+  getBridgeServerStatus: async (): Promise<{
+    connected: boolean;
+    url?: string;
+    latency_ms?: number;
+    version?: string;
+  }> => {
+    try {
+      const response = await apiClient.get<BridgeApiResponse>('/dashboard/bridge/status');
+
+      // Transform nested response to flat format
+      return {
+        connected: response.status?.connected ?? false,
+        url: response.status?.url,
+      };
+    } catch {
+      return { connected: false };
+    }
+  },
 };
