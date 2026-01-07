@@ -30,7 +30,7 @@ interface DoorSectionProps {
 
 export function DoorSection({ className }: DoorSectionProps) {
   // Hooks
-  const { data: door, isLoading: doorLoading } = useDoorStatus();
+  const { data: door, isLoading: doorLoading, isError: doorError } = useDoorStatus();
   const { data: history = [] } = useDoorHistory();
   const openMutation = useOpenDoor();
   const closeMutation = useCloseDoor();
@@ -91,6 +91,7 @@ export function DoorSection({ className }: DoorSectionProps) {
           <DoorControls
             door={door}
             isLoading={doorLoading}
+            isError={doorError}
             testingModeActive={testingModeActive}
             onOpen={handleOpen}
             onClose={handleClose}

@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { DoorOpen, DoorClosed, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { DoorOpen, DoorClosed, Lock, Unlock, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -30,6 +30,7 @@ import type { Door } from '@/domain/types/entities';
 interface DoorControlsProps {
   door: Door | undefined;
   isLoading?: boolean;
+  isError?: boolean;
   testingModeActive?: boolean;
   onOpen: (duration: number) => void;
   onClose: () => void;
@@ -47,6 +48,7 @@ const DURATIONS = [
 export function DoorControls({
   door,
   isLoading,
+  isError,
   testingModeActive = false,
   onOpen,
   onClose,
@@ -83,6 +85,23 @@ export function DoorControls({
     onClose();
     setShowConfirmClose(false);
   };
+
+  // Show error state if API is not available
+  if (isError) {
+    return (
+      <div className={cn('space-y-4', className)}>
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg bg-muted/50 p-6 text-center">
+          <AlertCircle className="h-10 w-10 text-muted-foreground" />
+          <div>
+            <p className="font-medium text-muted-foreground">Door Control Unavailable</p>
+            <p className="text-sm text-muted-foreground">
+              Door API is not available on this PiOrchestrator version
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !door) {
     return (

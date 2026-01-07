@@ -10,6 +10,7 @@ import { useTestingModeStore } from '@/application/stores/testingMode';
 
 /**
  * Hook for fetching door status with polling
+ * Note: Door API may not be available on all PiOrchestrator versions
  */
 export function useDoorStatus(enabled = true, pollingInterval = 2000) {
   return useQuery({
@@ -18,6 +19,8 @@ export function useDoorStatus(enabled = true, pollingInterval = 2000) {
     enabled,
     refetchInterval: pollingInterval,
     placeholderData: (previousData) => previousData,
+    retry: 1, // Only retry once since endpoint may not exist
+    retryDelay: 1000,
   });
 }
 

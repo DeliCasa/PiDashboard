@@ -30,7 +30,7 @@ function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Home className="h-5 w-5 text-primary-foreground" />
@@ -50,7 +50,7 @@ function Dashboard() {
       <OfflineIndicator className="container mx-auto mt-2 px-4" />
 
       {/* Main Content */}
-      <main className="container px-4 py-6">
+      <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="flex w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="overview" className="gap-2">
@@ -147,7 +147,7 @@ function Dashboard() {
 
       {/* Footer */}
       <footer className="border-t py-4">
-        <div className="container flex items-center justify-between px-4 text-sm text-muted-foreground">
+        <div className="container mx-auto flex items-center justify-between px-4 text-sm text-muted-foreground">
           <p>DeliCasa PiOrchestrator</p>
           <div className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
