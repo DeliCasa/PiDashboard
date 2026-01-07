@@ -1,35 +1,50 @@
-# Pi Dashboard - Claude Code Guidelines
+# CLAUDE.md
 
-This file provides guidance to Claude Code when working with the Pi Dashboard project.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-Pi Dashboard is a web-based configuration interface for the DeliCasa PiOrchestrator IoT system. It provides:
-- WiFi network configuration
-- ESP32 device discovery and provisioning
-- System health monitoring (CPU, memory, disk, temperature)
-- MQTT broker configuration
-
-## Tech Stack
-
-- **Framework**: Vite + React 18 + TypeScript
-- **Styling**: Tailwind CSS v4 + shadcn/ui (new-york style)
-- **Theme**: next-themes for dark/light mode
-- **Icons**: Lucide React
-- **Design System**: DeliCasa design tokens (primary: #8c1815)
+Pi Dashboard is a React web application for configuring and monitoring PiOrchestrator IoT devices on Raspberry Pi. It provides WiFi configuration, ESP32 device provisioning via Bluetooth, and real-time system monitoring.
 
 ## Essential Commands
 
 ```bash
-# Development
-npm install          # Install dependencies
-npm run dev          # Start dev server (http://localhost:5173)
-npm run build        # Build for production
-npm run preview      # Preview production build
-
-# Code Quality
-npm run lint         # Run ESLint
+npm run dev       # Start development server (port 5173)
+npm run build     # TypeScript compile + Vite build
+npm run lint      # Run ESLint
+npm run preview   # Preview production build
 ```
+
+## Architecture
+
+**Tech Stack**: React 19 + Vite 7 + TypeScript + Tailwind CSS v4 + shadcn/ui (new-york style)
+
+**Project Structure** (Hexagonal Architecture):
+```
+src/
+├── domain/              # Core business types and entities
+│   └── types/           # Entity and API type definitions
+├── application/         # Business logic and state management
+│   ├── hooks/           # React Query hooks for API integration
+│   └── stores/          # Zustand stores for client state
+├── infrastructure/      # External adapters
+│   ├── api/             # API client and service adapters
+│   ├── bluetooth/       # Web Bluetooth for ESP32 provisioning
+│   └── offline/         # IndexedDB offline queue
+├── presentation/        # UI layer
+│   └── components/      # React components by feature
+├── components/ui/       # shadcn/ui primitives
+├── lib/                 # Utilities (cn, queryClient)
+├── App.tsx              # Main app with tab navigation
+├── main.tsx             # Entry point
+└── index.css            # Design tokens + theme variables
+```
+
+**State Management**:
+- TanStack React Query for server state (API data)
+- Zustand for client state (UI state, offline queue)
+
+**API Integration**: All `/api/*` requests proxy to `http://localhost:8082` (PiOrchestrator Go backend) during development.
 
 ## Raspberry Pi Access
 
@@ -107,14 +122,6 @@ When Tailscale Funnel is enabled:
 - **Public URL**: `https://raspberrypi.tail345cd5.ts.net/`
 - **Tailnet URL**: `https://delicasa-pi-001.tail345cd5.ts.net/`
 
-### Enabling Tailscale Features
-
-If you get errors about serve/funnel not being enabled:
-1. Visit the URL provided in the error message
-2. Log in with your Tailscale account
-3. Enable the feature for the device
-4. Re-run the serve/funnel command
-
 ## PiOrchestrator Service
 
 The Pi runs the PiOrchestrator Go service that provides the backend API.
@@ -149,38 +156,22 @@ ssh pi "journalctl -u piorchestrator --since '10 minutes ago'"
 
 ```bash
 # 1. Build the dashboard
-cd /home/notroot/Documents/Code/CITi/DeliCasa/pi-dashboard
 npm run build
 
-# 2. Copy to Pi
-scp -r dist/* pi:/home/notroot/PiOrchestrator/web/dashboard/
+# 2. Copy to Pi (dashboard is embedded in Go binary)
+# The PiOrchestrator serves the dashboard from embedded assets
 
-# 3. Restart the PiOrchestrator service (if needed)
+# 3. If updating PiOrchestrator:
 ssh pi "sudo systemctl restart piorchestrator"
-```
-
-### Quick Deploy Script
-
-Create a deploy script for convenience:
-
-```bash
-#!/bin/bash
-# deploy.sh
-npm run build
-scp -r dist/* pi:/home/notroot/PiOrchestrator/web/dashboard/
-echo "Deployed! Dashboard available at https://raspberrypi.tail345cd5.ts.net/"
 ```
 
 ### Verify Deployment
 
 ```bash
-# Check if dashboard files exist on Pi
-ssh pi "ls -la /home/notroot/PiOrchestrator/web/dashboard/"
+# Check if dashboard is accessible
+curl -s http://192.168.1.124:8082 | head -20
 
-# Test the dashboard locally on Pi
-ssh pi "curl -s http://localhost:8082 | head -20"
-
-# Test via Tailscale Funnel
+# Test via Tailscale Funnel (if enabled)
 curl -s https://raspberrypi.tail345cd5.ts.net/ | head -20
 ```
 
@@ -202,22 +193,6 @@ The Vite dev server proxies `/api` requests to `http://localhost:8082`:
 
 3. Open http://localhost:5173 in browser
 
-### Testing Against Live Pi
-
-You can also develop against the live Pi API via Tailscale:
-
-1. Update `vite.config.ts` proxy target:
-   ```typescript
-   proxy: {
-     "/api": {
-       target: "https://raspberrypi.tail345cd5.ts.net",
-       changeOrigin: true,
-     },
-   }
-   ```
-
-2. Start dev server and test
-
 ## API Endpoints
 
 The PiOrchestrator backend provides these endpoints:
@@ -231,6 +206,11 @@ The PiOrchestrator backend provides these endpoints:
 | `/api/devices/scan` | GET | Trigger device scan |
 | `/api/devices/:addr/provision` | POST | Provision a device |
 | `/api/system/info` | GET | Get system information |
+| `/api/dashboard/cameras` | GET | List cameras |
+| `/api/dashboard/door/status` | GET | Door status |
+| `/api/dashboard/bridge/status` | GET | Bridge connection status |
+| `/api/dashboard/logs` | GET | SSE log stream |
+| `/api/dashboard/config` | GET | Configuration settings |
 
 ## Troubleshooting
 
@@ -249,12 +229,6 @@ ssh pi "sudo tailscale serve reset"
 ssh pi "sudo tailscale funnel --bg 8082"
 ```
 
-**Check network connectivity**:
-```bash
-ssh pi "tailscale ping dokku"
-ssh pi "curl -I https://dokku.tail1ba2bb.ts.net"
-```
-
 ### PiOrchestrator Issues
 
 **Service not starting**:
@@ -266,7 +240,6 @@ ssh pi "sudo systemctl status piorchestrator"
 **Port already in use**:
 ```bash
 ssh pi "ss -tlnp | grep -E '(8081|8082|9090)'"
-ssh pi "sudo lsof -i :8082"
 ```
 
 ### SSH Issues
@@ -276,57 +249,19 @@ ssh pi "sudo lsof -i :8082"
 - Check LAN connectivity: `ping 192.168.1.124`
 - Try Tailscale IP: `ssh notroot@100.74.31.25`
 
-**Permission denied**:
-- Ensure SSH key is added: `ssh-add ~/.ssh/id_ed25519`
-- Check authorized_keys on Pi
-
-## Project Structure
-
-```
-pi-dashboard/
-├── src/
-│   ├── components/
-│   │   ├── dashboard/          # Feature components
-│   │   │   ├── WiFiSection.tsx
-│   │   │   ├── DeviceSection.tsx
-│   │   │   └── SystemStatus.tsx
-│   │   ├── ui/                 # shadcn/ui components
-│   │   ├── ThemeProvider.tsx
-│   │   └── ThemeToggle.tsx
-│   ├── lib/
-│   │   └── utils.ts            # Utility functions (cn)
-│   ├── hooks/                  # Custom React hooks
-│   ├── App.tsx                 # Main application
-│   ├── main.tsx                # Entry point
-│   └── index.css               # Global styles + design tokens
-├── vite.config.ts              # Vite configuration
-├── components.json             # shadcn/ui configuration
-├── tailwind.config.ts          # Tailwind configuration (if needed)
-└── tsconfig.json               # TypeScript configuration
-```
-
 ## Design System
 
-The dashboard follows the DeliCasa design system:
+Uses DeliCasa brand colors with CSS custom properties for light/dark theming:
 
 | Token | Light Mode | Dark Mode |
 |-------|------------|-----------|
 | Primary | `#8c1815` | `#dc6b68` |
 | Background | `#fcfcfc` | `#171717` |
 | Foreground | `#262626` | `#fafafa` |
-| Border | `#e5e5e5` | `#333333` |
 
-### Color Variables
-
-All colors are defined as CSS variables in `src/index.css` and can be used via Tailwind:
-
-```jsx
-<div className="bg-background text-foreground border-border">
-  <button className="bg-primary text-primary-foreground">
-    Click me
-  </button>
-</div>
-```
+- **Theme storage key**: `delicasa-pi-theme`
+- **Components**: shadcn/ui with Radix UI primitives
+- Path alias `@/` maps to `src/` directory
 
 ## Related Projects
 
