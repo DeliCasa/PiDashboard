@@ -1,10 +1,10 @@
 /**
  * Logs Hooks
- * React Query hooks and SSE streaming for logs
+ * React Query hooks for log fetching via polling (backend returns JSON, not SSE)
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { logsApi } from '@/infrastructure/api/logs';
 import { queryKeys } from '@/lib/queryClient';
 import type { LogEntry } from '@/domain/types/entities';
@@ -34,54 +34,65 @@ export function useExportDiagnostics() {
 }
 
 /**
- * Hook for SSE log streaming
+ * Hook for log polling (replacement for SSE streaming)
+ * Backend returns JSON {count, logs} instead of SSE stream
  */
 export function useLogStream(level?: string) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxLogs = 500; // Keep last 500 entries per spec
 
-  const connect = useCallback(() => {
-    // Clean up existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
+  const fetchLogs = useCallback(async () => {
+    try {
+      const params: Record<string, string | number | boolean | undefined> = {
+        limit: 100,
+      };
+      if (level && level !== 'all') {
+        params.level = level;
+      }
+      const newLogs = await logsApi.getRecent(params);
 
-    const url = logsApi.getStreamUrl(level);
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
+      setLogs((prevLogs) => {
+        // If no new logs, just mark as connected
+        if (!newLogs || newLogs.length === 0) {
+          return prevLogs;
+        }
+        // Merge new logs, avoiding duplicates by timestamp+message
+        const existing = new Set(prevLogs.map(l => `${l.timestamp}-${l.message}`));
+        const uniqueNew = newLogs.filter(l => !existing.has(`${l.timestamp}-${l.message}`));
+        const merged = [...prevLogs, ...uniqueNew];
+        // Keep only the last maxLogs entries
+        return merged.slice(-maxLogs);
+      });
 
-    eventSource.onopen = () => {
       setConnected(true);
       setError(null);
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const entry: LogEntry = JSON.parse(event.data);
-        setLogs((prev) => {
-          const newLogs = [...prev, entry];
-          // Keep only the last maxLogs entries
-          return newLogs.slice(-maxLogs);
-        });
-      } catch (e) {
-        console.error('Failed to parse log entry:', e);
-      }
-    };
-
-    eventSource.onerror = () => {
+    } catch (e) {
       setConnected(false);
-      setError('Connection lost');
-      eventSource.close();
-    };
+      setError(e instanceof Error ? e.message : 'Failed to fetch logs');
+    }
   }, [level]);
 
-  const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+  const startPolling = useCallback(() => {
+    // Initial fetch
+    fetchLogs();
+
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Poll every 3 seconds
+    pollingIntervalRef.current = setInterval(fetchLogs, 3000);
+    setConnected(true);
+  }, [fetchLogs]);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
     setConnected(false);
   }, []);
@@ -90,29 +101,21 @@ export function useLogStream(level?: string) {
     setLogs([]);
   }, []);
 
-  // Connect on mount, disconnect on unmount, reconnect on level change
+  // Start polling on mount, stop on unmount
   useEffect(() => {
-    connect();
-
-    // Auto-reconnect on error after 5 seconds
-    const retryId = setInterval(() => {
-      if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
-        connect();
-      }
-    }, 5000);
+    startPolling();
 
     return () => {
-      clearInterval(retryId);
-      disconnect();
+      stopPolling();
     };
-  }, [connect, disconnect]);
+  }, [startPolling, stopPolling]);
 
   return {
     logs,
     connected,
     error,
     clearLogs,
-    reconnect: connect,
-    disconnect,
+    reconnect: startPolling,
+    disconnect: stopPolling,
   };
 }

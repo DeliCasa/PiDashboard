@@ -62,9 +62,23 @@ export const networkApi = {
 
   /**
    * Ping a host to test connectivity
+   * Note: Ping endpoint may not exist on all PiOrchestrator versions
    */
-  ping: (host: string, count = 3) =>
-    apiClient.post<PingResponse>(`/dashboard/tailscale/ping/${encodeURIComponent(host)}`, { count }),
+  ping: async (host: string, count = 3): Promise<PingResponse> => {
+    try {
+      return await apiClient.post<PingResponse>('/dashboard/tailscale/ping', {
+        type: 'icmp',
+        host,
+        count,
+      });
+    } catch (error) {
+      // Ping endpoint may not exist - return error response
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Ping not available on this system',
+      };
+    }
+  },
 
   /**
    * Get MQTT broker status

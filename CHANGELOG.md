@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-01-07
+
+### Fixed
+- Fixed System Logs showing "Disconnected" and "Waiting for logs"
+  - Backend returns JSON `{count, logs}` instead of SSE stream
+  - Changed from EventSource SSE to polling-based fetching (3s interval)
+- Fixed Ping Tool showing "400 Bad Request: missing 'type' parameter"
+  - Added `type: 'icmp'` parameter to ping requests
+  - Graceful error handling when ping endpoint unavailable
+
+### Changed
+- Logs API now returns `LogEntry[]` after extracting from `{count, logs}` response
+- Logs hook uses polling instead of SSE for backend compatibility
+- Ping API includes proper error handling and fallback response
+
+---
+
 ## [1.1.2] - 2026-01-07
 
 ### Fixed
