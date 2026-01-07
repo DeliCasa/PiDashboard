@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-01-07
+
+### Fixed
+- Fixed WiFi networks not displaying after scan
+  - Backend returns `security: "WPA2"` string, frontend expected `secured: boolean`
+  - Added transformation from `security` string to `secured` + `encryption` fields
+
+### Changed
+- WiFi API now transforms network responses to match frontend WiFiNetwork type
+- Maps security strings ("WPA2", "WPA3", "Open") to encryption enum values
+
+---
+
 ## [1.1.3] - 2026-01-07
 
 ### Fixed
