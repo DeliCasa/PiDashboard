@@ -1,0 +1,976 @@
+openapi: 3.0.3
+info:
+  title: Pi Dashboard API Contract
+  description: |
+    API contract between PiDashboard frontend and PiOrchestrator backend.
+    All endpoints are proxied through Vite dev server to http://localhost:8082.
+  version: 1.0.0
+  contact:
+    name: DeliCasa IoT Team
+
+servers:
+  - url: /api
+    description: Development (proxied to PiOrchestrator)
+  - url: http://{pi-ip}:8082/api
+    description: Production (direct to Pi)
+    variables:
+      pi-ip:
+        default: localhost
+
+tags:
+  - name: System
+    description: System health and status
+  - name: WiFi
+    description: WiFi configuration and scanning
+  - name: Devices
+    description: ESP32 device discovery and provisioning
+  - name: Cameras
+    description: Camera management and capture
+  - name: Door
+    description: Door control operations
+  - name: Logs
+    description: Log streaming and export
+  - name: Config
+    description: Configuration management
+  - name: Network
+    description: Network diagnostics
+
+paths:
+  # ============ SYSTEM ============
+  /system/info:
+    get:
+      tags: [System]
+      summary: Get system status
+      description: Returns current system health metrics
+      operationId: getSystemInfo
+      responses:
+        '200':
+          description: System status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Simple health check endpoint
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ============ WIFI ============
+  /wifi/scan:
+    get:
+      tags: [WiFi]
+      summary: Scan for WiFi networks
+      description: Initiates WiFi network scan and returns results
+      operationId: scanWifiNetworks
+      responses:
+        '200':
+          description: Scan results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  networks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WiFiNetwork'
+        '408':
+          description: Scan timeout
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wifi/connect:
+    post:
+      tags: [WiFi]
+      summary: Connect to WiFi network
+      description: Attempts to connect to specified WiFi network
+      operationId: connectWifi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ssid]
+              properties:
+                ssid:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                password:
+                  type: string
+                  maxLength: 63
+      responses:
+        '200':
+          description: Connection successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ip_address:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Authentication failed (wrong password)
+        '408':
+          description: Connection timeout
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wifi/status:
+    get:
+      tags: [WiFi]
+      summary: Get WiFi status
+      description: Returns current WiFi connection status
+      operationId: getWifiStatus
+      responses:
+        '200':
+          description: WiFi status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: '#/components/schemas/WiFiStatus'
+
+  /wifi/disconnect:
+    post:
+      tags: [WiFi]
+      summary: Disconnect from WiFi
+      description: Disconnects from current WiFi network
+      operationId: disconnectWifi
+      responses:
+        '200':
+          description: Disconnected successfully
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ============ DEVICES ============
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List discovered devices
+      description: Returns list of discovered BLE devices
+      operationId: listDevices
+      responses:
+        '200':
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+
+  /devices/scan:
+    post:
+      tags: [Devices]
+      summary: Start BLE device scan
+      description: Initiates Bluetooth LE scan for ESP32 devices
+      operationId: scanDevices
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration:
+                  type: integer
+                  description: Scan duration in seconds
+                  default: 10
+                  minimum: 5
+                  maximum: 60
+      responses:
+        '200':
+          description: Scan started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scanning:
+                    type: boolean
+                  duration:
+                    type: integer
+        '409':
+          description: Scan already in progress
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /devices/{address}/provision:
+    post:
+      tags: [Devices]
+      summary: Provision ESP32 device
+      description: Provisions device with MQTT and WiFi credentials via BLE
+      operationId: provisionDevice
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device BLE/MAC address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mqtt]
+              properties:
+                mqtt:
+                  $ref: '#/components/schemas/MQTTConfig'
+                wifi:
+                  type: object
+                  properties:
+                    ssid:
+                      type: string
+                    password:
+                      type: string
+      responses:
+        '200':
+          description: Provisioning successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  device:
+                    $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Device not found
+        '408':
+          description: Provisioning timeout
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ============ CAMERAS ============
+  /cameras:
+    get:
+      tags: [Cameras]
+      summary: List cameras
+      description: Returns list of registered cameras
+      operationId: listCameras
+      responses:
+        '200':
+          description: Camera list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Camera'
+
+  /cameras/diagnostics:
+    get:
+      tags: [Cameras]
+      summary: Get camera diagnostics
+      description: Returns detailed health info for all cameras
+      operationId: getCameraDiagnostics
+      responses:
+        '200':
+          description: Camera diagnostics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CameraDiagnostics'
+
+  /cameras/{id}/capture:
+    post:
+      tags: [Cameras]
+      summary: Trigger camera capture
+      description: Requests image capture from specified camera
+      operationId: captureImage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Camera ID
+      responses:
+        '200':
+          description: Capture successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  image_url:
+                    type: string
+                    description: URL to captured image
+                  timestamp:
+                    type: string
+                    format: date-time
+        '404':
+          description: Camera not found
+        '408':
+          description: Capture timeout
+        '503':
+          description: Camera offline
+
+  /cameras/{id}/reboot:
+    post:
+      tags: [Cameras]
+      summary: Reboot camera
+      description: Sends reboot command to camera
+      operationId: rebootCamera
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reboot command sent
+        '404':
+          description: Camera not found
+
+  # ============ DOOR ============
+  /door/status:
+    get:
+      tags: [Door]
+      summary: Get door status
+      description: Returns current door state
+      operationId: getDoorStatus
+      responses:
+        '200':
+          description: Door status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Door'
+
+  /door/open:
+    post:
+      tags: [Door]
+      summary: Open door
+      description: Unlocks door for specified duration
+      operationId: openDoor
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration:
+                  type: integer
+                  description: Unlock duration in seconds
+                  default: 5
+                  minimum: 1
+                  maximum: 30
+                testing_mode:
+                  type: boolean
+                  description: Whether in testing mode (skip confirmation)
+      responses:
+        '200':
+          description: Door opened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  state:
+                    type: string
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /door/close:
+    post:
+      tags: [Door]
+      summary: Close door
+      description: Locks the door
+      operationId: closeDoor
+      responses:
+        '200':
+          description: Door closed
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /door/history:
+    get:
+      tags: [Door]
+      summary: Get door operation history
+      description: Returns recent door operations
+      operationId: getDoorHistory
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Operation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoorOperation'
+
+  # ============ LOGS ============
+  /dashboard/logs:
+    get:
+      tags: [Logs]
+      summary: Get recent logs
+      description: Returns recent log entries
+      operationId: getLogs
+      parameters:
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warn, error]
+        - name: component
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+      responses:
+        '200':
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogEntry'
+
+  /dashboard/logs/stream:
+    get:
+      tags: [Logs]
+      summary: Stream logs (SSE)
+      description: Server-Sent Events stream of log entries
+      operationId: streamLogs
+      parameters:
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warn, error]
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /dashboard/diagnostics/export:
+    get:
+      tags: [Logs]
+      summary: Export diagnostics
+      description: Generates comprehensive diagnostic report
+      operationId: exportDiagnostics
+      responses:
+        '200':
+          description: Diagnostic report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticReport'
+
+  # ============ CONFIG ============
+  /dashboard/config:
+    get:
+      tags: [Config]
+      summary: Get configuration
+      description: Returns system configuration values
+      operationId: getConfig
+      responses:
+        '200':
+          description: Configuration entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigEntry'
+
+  /dashboard/config/{key}:
+    put:
+      tags: [Config]
+      summary: Update configuration
+      description: Updates a configuration value
+      operationId: updateConfig
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Configuration updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Configuration not editable
+        '404':
+          description: Configuration key not found
+
+  # ============ NETWORK ============
+  /dashboard/tailscale/status:
+    get:
+      tags: [Network]
+      summary: Get Tailscale status
+      description: Returns Tailscale VPN connection status
+      operationId: getTailscaleStatus
+      responses:
+        '200':
+          description: Tailscale status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TailscaleStatus'
+
+  /dashboard/network/ping:
+    post:
+      tags: [Network]
+      summary: Ping endpoint
+      description: Tests connectivity to specified host
+      operationId: pingEndpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host:
+                  type: string
+                count:
+                  type: integer
+                  default: 3
+      responses:
+        '200':
+          description: Ping results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  latency_ms:
+                    type: number
+                  packet_loss:
+                    type: number
+
+  /dashboard/health/stream:
+    get:
+      tags: [System]
+      summary: Stream health metrics (SSE)
+      description: Server-Sent Events stream of system health
+      operationId: streamHealth
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  schemas:
+    SystemStatus:
+      type: object
+      required:
+        - cpu_usage
+        - memory_usage
+        - disk_usage
+        - temperature
+        - uptime
+        - hostname
+      properties:
+        cpu_usage:
+          type: number
+          minimum: 0
+          maximum: 100
+        memory_usage:
+          type: number
+          minimum: 0
+          maximum: 100
+        memory_total:
+          type: integer
+        memory_available:
+          type: integer
+        disk_usage:
+          type: number
+          minimum: 0
+          maximum: 100
+        disk_total:
+          type: integer
+        disk_available:
+          type: integer
+        temperature:
+          type: number
+        uptime:
+          type: string
+        uptime_seconds:
+          type: integer
+        hostname:
+          type: string
+        pi_model:
+          type: string
+          enum: [pi3, pi4, pi5, unknown]
+
+    WiFiNetwork:
+      type: object
+      required: [ssid, signal, secured]
+      properties:
+        ssid:
+          type: string
+        signal:
+          type: integer
+          minimum: -100
+          maximum: 0
+        secured:
+          type: boolean
+        encryption:
+          type: string
+          enum: [open, wep, wpa, wpa2, wpa3]
+        bssid:
+          type: string
+        channel:
+          type: integer
+
+    WiFiStatus:
+      type: object
+      required: [client_status, ap_status]
+      properties:
+        client_status:
+          type: string
+          enum: [connected, disconnected, connecting, error]
+        client_ssid:
+          type: string
+        client_ip:
+          type: string
+        client_signal:
+          type: integer
+        ap_status:
+          type: string
+          enum: [active, inactive, starting]
+        ap_ssid:
+          type: string
+        ap_ip:
+          type: string
+        connected_devices:
+          type: integer
+
+    Device:
+      type: object
+      required: [name, address, rssi, status, provisioned]
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        rssi:
+          type: integer
+        status:
+          type: string
+          enum: [discovered, connecting, provisioning, provisioned, online, offline, error]
+        provisioned:
+          type: boolean
+        mqtt_configured:
+          type: boolean
+        wifi_configured:
+          type: boolean
+        last_seen:
+          type: string
+          format: date-time
+        firmware_version:
+          type: string
+
+    Camera:
+      type: object
+      required: [id, name, status, lastSeen]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, error, rebooting]
+        lastSeen:
+          type: string
+          format: date-time
+        health:
+          $ref: '#/components/schemas/CameraHealth'
+        ip_address:
+          type: string
+        mac_address:
+          type: string
+
+    CameraHealth:
+      type: object
+      required: [wifi_rssi, free_heap, uptime, resolution]
+      properties:
+        wifi_rssi:
+          type: integer
+        free_heap:
+          type: integer
+        uptime:
+          type: string
+        uptime_seconds:
+          type: integer
+        resolution:
+          type: string
+          enum: [QQVGA, QVGA, VGA, SVGA, XGA, SXGA, UXGA]
+        firmware_version:
+          type: string
+        last_capture:
+          type: string
+          format: date-time
+
+    CameraDiagnostics:
+      allOf:
+        - $ref: '#/components/schemas/Camera'
+        - type: object
+          properties:
+            diagnostics:
+              type: object
+              properties:
+                connection_quality:
+                  type: string
+                  enum: [excellent, good, fair, poor]
+                error_count:
+                  type: integer
+                last_error:
+                  type: string
+
+    Door:
+      type: object
+      required: [id, state, lockState, relayPin]
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          enum: [open, closed, unknown]
+        lockState:
+          type: string
+          enum: [locked, unlocked, unknown]
+        lastCommand:
+          type: string
+          format: date-time
+        lastCommandType:
+          type: string
+          enum: [open, close, lock, unlock]
+        lastCommandResult:
+          type: string
+          enum: [success, failure, timeout]
+        relayPin:
+          type: integer
+
+    DoorOperation:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        command:
+          type: string
+          enum: [open, close, lock, unlock]
+        result:
+          type: string
+          enum: [success, failure, timeout]
+        testing_mode:
+          type: boolean
+
+    MQTTConfig:
+      type: object
+      required: [broker, port]
+      properties:
+        broker:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        username:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        client_id:
+          type: string
+        use_tls:
+          type: boolean
+
+    LogEntry:
+      type: object
+      required: [id, timestamp, level, component, message]
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [debug, info, warn, error]
+        component:
+          type: string
+        message:
+          type: string
+        metadata:
+          type: object
+
+    ConfigEntry:
+      type: object
+      required: [key, value, category, type, editable, sensitive]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        category:
+          type: string
+          enum: [system, mqtt, wifi, hardware, monitoring]
+        type:
+          type: string
+          enum: [string, number, boolean, select]
+        editable:
+          type: boolean
+        sensitive:
+          type: boolean
+        default_value:
+          type: string
+        description:
+          type: string
+
+    TailscaleStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        ip:
+          type: string
+        hostname:
+          type: string
+        peers:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              ip:
+                type: string
+              online:
+                type: boolean
+
+    DiagnosticReport:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        system:
+          $ref: '#/components/schemas/SystemStatus'
+        wifi:
+          $ref: '#/components/schemas/WiFiStatus'
+        cameras:
+          type: array
+          items:
+            $ref: '#/components/schemas/CameraDiagnostics'
+        door:
+          $ref: '#/components/schemas/Door'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        config:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigEntry'
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: object
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: string

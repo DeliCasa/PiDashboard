@@ -1,9 +1,29 @@
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { WiFiSection, DeviceSection, SystemStatus } from "@/components/dashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
-import { Home, Wifi, Bluetooth, Settings } from "lucide-react";
+import {
+  Home,
+  Wifi,
+  Bluetooth,
+  Settings,
+  Activity,
+  Camera,
+  DoorOpen,
+  FileText,
+  Network,
+} from "lucide-react";
+
+// Presentation layer components (hexagonal architecture)
+import { SystemStatus } from "@/presentation/components/system/SystemStatus";
+import { WiFiSection } from "@/presentation/components/wifi/WiFiSection";
+import { DeviceSection } from "@/presentation/components/devices/DeviceSection";
+import { CameraSection } from "@/presentation/components/cameras/CameraSection";
+import { DoorSection } from "@/presentation/components/door/DoorSection";
+import { LogSection } from "@/presentation/components/logs/LogSection";
+import { ConfigSection } from "@/presentation/components/config/ConfigSection";
+import { NetworkSection } from "@/presentation/components/network/NetworkSection";
+import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndicator";
 
 function Dashboard() {
   return (
@@ -26,13 +46,20 @@ function Dashboard() {
         </div>
       </header>
 
+      {/* Offline Indicator */}
+      <OfflineIndicator className="container mx-auto mt-2 px-4" />
+
       {/* Main Content */}
       <main className="container px-4 py-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:grid-cols-none lg:flex">
+          <TabsList className="flex w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="overview" className="gap-2">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="system" className="gap-2">
+              <Activity className="h-4 w-4" />
+              <span className="hidden sm:inline">System</span>
             </TabsTrigger>
             <TabsTrigger value="wifi" className="gap-2">
               <Wifi className="h-4 w-4" />
@@ -42,6 +69,26 @@ function Dashboard() {
               <Bluetooth className="h-4 w-4" />
               <span className="hidden sm:inline">Devices</span>
             </TabsTrigger>
+            <TabsTrigger value="cameras" className="gap-2">
+              <Camera className="h-4 w-4" />
+              <span className="hidden sm:inline">Cameras</span>
+            </TabsTrigger>
+            <TabsTrigger value="door" className="gap-2">
+              <DoorOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Door</span>
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Logs</span>
+            </TabsTrigger>
+            <TabsTrigger value="network" className="gap-2">
+              <Network className="h-4 w-4" />
+              <span className="hidden sm:inline">Network</span>
+            </TabsTrigger>
+            <TabsTrigger value="config" className="gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Config</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -50,7 +97,15 @@ function Dashboard() {
               <SystemStatus />
               <WiFiSection />
             </div>
-            <DeviceSection />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <CameraSection />
+              <DoorSection />
+            </div>
+          </TabsContent>
+
+          {/* System Tab */}
+          <TabsContent value="system">
+            <SystemStatus />
           </TabsContent>
 
           {/* WiFi Tab */}
@@ -61,6 +116,31 @@ function Dashboard() {
           {/* Devices Tab */}
           <TabsContent value="devices">
             <DeviceSection />
+          </TabsContent>
+
+          {/* Cameras Tab */}
+          <TabsContent value="cameras">
+            <CameraSection />
+          </TabsContent>
+
+          {/* Door Tab */}
+          <TabsContent value="door">
+            <DoorSection />
+          </TabsContent>
+
+          {/* Logs Tab */}
+          <TabsContent value="logs">
+            <LogSection />
+          </TabsContent>
+
+          {/* Network Tab */}
+          <TabsContent value="network">
+            <NetworkSection />
+          </TabsContent>
+
+          {/* Config Tab */}
+          <TabsContent value="config">
+            <ConfigSection />
           </TabsContent>
         </Tabs>
       </main>
