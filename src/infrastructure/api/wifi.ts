@@ -1,13 +1,22 @@
 /**
  * WiFi API Service
  * WiFi configuration, scanning, and connection management
+ *
+ * Feature: 005-testing-research-and-hardening (T022)
+ * Includes Zod schema validation for runtime API contract enforcement.
  */
 
 import { apiClient } from './client';
+import {
+  WifiScanResponseSchema,
+  WifiStatusResponseSchema,
+  WifiConnectResponseSchema,
+  safeParseWithErrors,
+} from './schemas';
 import type { WiFiNetwork, WiFiStatus, WifiEncryption } from '@/domain/types/entities';
 import type { WiFiConnectResponse } from '@/domain/types/api';
 
-// Backend response types
+// Backend response types (kept for backward compatibility)
 interface WiFiNetworkApiResponse {
   ssid: string;
   bssid?: string;
@@ -18,16 +27,17 @@ interface WiFiNetworkApiResponse {
   quality?: number;
 }
 
+// NOTE: V1 envelope is unwrapped by proxy
 interface WiFiScanApiResponse {
   count: number;
   networks: WiFiNetworkApiResponse[];
-  success: boolean;
 }
 
 /**
  * Transform backend security string to frontend encryption type
+ * @exported for unit testing (T012)
  */
-function mapSecurityToEncryption(security: string): WifiEncryption {
+export function mapSecurityToEncryption(security: string): WifiEncryption {
   const securityLower = security.toLowerCase();
   if (securityLower === 'open' || securityLower === 'none') return 'open';
   if (securityLower.includes('wpa3')) return 'wpa3';
@@ -37,10 +47,14 @@ function mapSecurityToEncryption(security: string): WifiEncryption {
   return 'open';
 }
 
+// Export the backend response type for testing
+export type { WiFiNetworkApiResponse };
+
 /**
  * Transform backend network to frontend format
+ * @exported for unit testing (T013)
  */
-function transformNetwork(network: WiFiNetworkApiResponse): WiFiNetwork {
+export function transformNetwork(network: WiFiNetworkApiResponse): WiFiNetwork {
   const encryption = mapSecurityToEncryption(network.security);
   return {
     ssid: network.ssid,
@@ -58,20 +72,39 @@ function transformNetwork(network: WiFiNetworkApiResponse): WiFiNetwork {
 export const wifiApi = {
   /**
    * Scan for available WiFi networks
-   * Transforms backend response to frontend WiFiNetwork format
+   * Validates response and transforms to frontend WiFiNetwork format.
    */
   scan: async (): Promise<{ networks: WiFiNetwork[] }> => {
     const response = await apiClient.get<WiFiScanApiResponse>('/wifi/scan');
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(WifiScanResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] WiFi scan validation failed:', validation.errors);
+    }
+
     return {
-      networks: (response.networks || []).map(transformNetwork),
+      networks: Array.isArray(response.networks)
+        ? response.networks.map(transformNetwork)
+        : [],
     };
   },
 
   /**
    * Connect to a WiFi network
+   * Validates response against schema.
    */
-  connect: (ssid: string, password?: string) =>
-    apiClient.post<WiFiConnectResponse>('/wifi/connect', { ssid, password }),
+  connect: async (ssid: string, password?: string): Promise<WiFiConnectResponse> => {
+    const response = await apiClient.post<WiFiConnectResponse>('/wifi/connect', { ssid, password });
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(WifiConnectResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] WiFi connect validation failed:', validation.errors);
+    }
+
+    return response;
+  },
 
   /**
    * Disconnect from current WiFi network
@@ -81,7 +114,17 @@ export const wifiApi = {
 
   /**
    * Get current WiFi status
+   * Validates response against schema.
    */
-  getStatus: () =>
-    apiClient.get<{ status: WiFiStatus }>('/wifi/status'),
+  getStatus: async (): Promise<{ status: WiFiStatus }> => {
+    const response = await apiClient.get<{ status: WiFiStatus }>('/wifi/status');
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(WifiStatusResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] WiFi status validation failed:', validation.errors);
+    }
+
+    return response;
+  },
 };

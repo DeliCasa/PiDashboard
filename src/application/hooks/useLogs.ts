@@ -10,6 +10,22 @@ import { queryKeys } from '@/lib/queryClient';
 import type { LogEntry } from '@/domain/types/entities';
 
 /**
+ * Hook for fetching recent logs (alias for useRecentLogs)
+ */
+export function useLogs(
+  params?: { level?: string; search?: string; limit?: number },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.logList(params),
+    queryFn: () => logsApi.getRecent(params),
+    enabled,
+    staleTime: 5000,
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+}
+
+/**
  * Hook for fetching recent logs
  */
 export function useRecentLogs(

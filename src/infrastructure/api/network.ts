@@ -52,11 +52,13 @@ export const networkApi = {
       connected: response.backend_state === 'Running',
       ip: response.tailscale_ip || undefined,
       hostname: response.hostname,
-      peers: response.peers?.map(p => ({
-        name: p.hostname,
-        ip: p.tailscale_ip,
-        online: p.online,
-      })),
+      peers: Array.isArray(response.peers)
+        ? response.peers.map(p => ({
+            name: p.hostname,
+            ip: p.tailscale_ip,
+            online: p.online,
+          }))
+        : undefined,
     };
   },
 
