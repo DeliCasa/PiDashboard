@@ -1,6 +1,9 @@
 /**
  * MetricCard Component
  * Displays a single system metric with icon, value, and threshold indicator
+ *
+ * Feature: 005-testing-research-and-hardening (T034)
+ * Added data-testid attributes for reliable test selectors.
  */
 
 import { cn } from '@/lib/utils';
@@ -46,18 +49,25 @@ export function MetricCard({
   const displayValue = unit === '%' ? value.toFixed(1) : value.toFixed(1);
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div
+      data-testid={`metric-card-${label.toLowerCase().replace(/\s+/g, '-')}`}
+      className={cn('space-y-2', className)}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon className={cn('h-4 w-4', statusColors[status])} />
-          <span className="text-sm font-medium">{label}</span>
+          <span data-testid="metric-label" className="text-sm font-medium">{label}</span>
         </div>
-        <span className={cn('text-sm font-semibold', statusColors[status])}>
+        <span
+          data-testid="metric-value"
+          className={cn('text-sm font-semibold', statusColors[status])}
+        >
           {displayValue}{unit}
         </span>
       </div>
       {showProgress && (
         <Progress
+          data-testid="metric-progress"
           value={percentage}
           className={cn('h-2', progressColors[status])}
         />

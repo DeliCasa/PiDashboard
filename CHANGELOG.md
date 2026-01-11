@@ -5,6 +5,217 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added - PiOrchestrator V1 API Sync (Feature 006)
+
+#### Phase 1: Types & Contracts (Complete)
+- V1 API response envelope types with discriminated unions (`src/domain/types/v1-api.ts`)
+- Batch provisioning entity types (`src/domain/types/provisioning.ts`)
+- WebSocket monitoring types (`src/domain/types/websocket.ts`)
+- SSE event types for real-time updates (`src/domain/types/sse.ts`)
+- V1 envelope Zod schemas (`src/infrastructure/api/schemas.ts`)
+- Provisioning fixtures and contract tests
+
+#### Phase 2: Foundational API Infrastructure (Complete)
+- Error code registry with user-friendly messages (`src/infrastructure/api/errors.ts`)
+- API key management module (`src/infrastructure/api/auth.ts`)
+- V1 API client wrapper with envelope unwrapping (`src/infrastructure/api/v1-client.ts`)
+- Feature flag store with persistence (`src/application/stores/features.ts`)
+- Batch provisioning API service (`src/infrastructure/api/batch-provisioning.ts`)
+- Device allowlist API service (`src/infrastructure/api/allowlist.ts`)
+- Session recovery API service (`src/infrastructure/api/session-recovery.ts`)
+- MSW handlers for V1 endpoints (`tests/integration/mocks/handlers.ts`)
+
+#### Phase 3: Batch Device Provisioning UI (Complete)
+- Generic SSE hook with auto-reconnection (`src/application/hooks/useSSE.ts`)
+- Batch provisioning events hook (`src/application/hooks/useBatchProvisioningEvents.ts`)
+- ConnectionStatus component with state indicators (`src/presentation/components/common/ConnectionStatus.tsx`)
+- StartSessionForm component for session initiation (`src/presentation/components/provisioning/StartSessionForm.tsx`)
+- SessionProgress component with device counts (`src/presentation/components/provisioning/SessionProgress.tsx`)
+- ProvisioningCandidateCard component for device display (`src/presentation/components/provisioning/ProvisioningCandidateCard.tsx`)
+- BatchProvisioningSection main orchestrator (`src/presentation/components/provisioning/BatchProvisioningSection.tsx`)
+- Provisioning tab in App navigation (feature-flagged)
+- ScrollArea UI component (`src/components/ui/scroll-area.tsx`)
+
+#### Phase 4: Device Allowlist Management UI (Complete)
+- useAllowlist hook with optimistic updates (`src/application/hooks/useAllowlist.ts`)
+- AllowlistEntryForm component with MAC validation (`src/presentation/components/allowlist/AllowlistEntryForm.tsx`)
+- AllowlistEntryCard component with status display (`src/presentation/components/allowlist/AllowlistEntryCard.tsx`)
+- AllowlistSection main orchestrator (`src/presentation/components/allowlist/AllowlistSection.tsx`)
+- DropdownMenu UI component (`src/components/ui/dropdown-menu.tsx`)
+
+#### Phase 5: Session Recovery UI (Complete)
+- useRecoverableSessions hook with optimistic updates for discard (`src/application/hooks/useRecoverableSessions.ts`)
+- useRecoveryMutations hook for resume/discard operations
+- useSessionHistory hook for historical session data
+- SessionRecoveryBanner component with resume/discard/dismiss (`src/presentation/components/provisioning/SessionRecoveryBanner.tsx`)
+- AlertDialog UI component for discard confirmation (`src/components/ui/alert-dialog.tsx`)
+
+#### Phase 6: Real-Time System Monitoring (Complete)
+- useWebSocket generic hook with auto-reconnection and exponential backoff (`src/application/hooks/useWebSocket.ts`)
+  - Ping/pong keepalive mechanism
+  - Configurable retry limits and protocols
+  - Connection state tracking (connecting, connected, reconnecting, error, disconnected)
+- useSystemMonitor hook with WebSocket primary and polling fallback (`src/application/hooks/useSystemMonitor.ts`)
+  - Automatic transport selection and fallback
+  - Partial data merging for incremental updates
+  - Manual transport switching (usePolling/useWebSocket)
+  - Specialized hooks: useSystemHealth, useSecurityMetrics, useServiceStatus, useNetworkMetrics, useCameraMonitor
+- SystemStatus component updated to use WebSocket monitoring (`src/presentation/components/system/SystemStatus.tsx`)
+  - ConnectionIndicator showing transport type (WS/Poll) and connection status
+  - Refresh button with loading state
+  - Error state with retry button
+
+#### Phase 7: API Key & Error Handling (Complete)
+- ErrorDisplay component for structured error display (`src/presentation/components/common/ErrorDisplay.tsx`)
+  - Category-based styling (auth, session, device, network, validation, infrastructure)
+  - User-friendly error messages from error code registry
+  - Retry countdown with automatic retry for retryable errors
+  - Correlation ID display with copy-to-clipboard
+  - Compact mode for inline display
+- Specialized error displays: AuthErrorDisplay, NetworkErrorDisplay, InlineError
+
+#### Phase 8: Polish & Cross-Cutting Concerns (Complete)
+- Accessibility labels added to all new V1 API components:
+  - ConnectionStatus: `role="status"`, `aria-live="polite"`, `aria-label` for state
+  - ConnectionDot: `role="status"`, `aria-label`, `title` for tooltip
+  - BatchProvisioningSection: `<section>` with `aria-label`, `role="alert"` on errors, device list with `role="region"` and `role="list"`
+  - AllowlistSection: `<section>` with `aria-label`, `role="alert"` on error alerts
+- V1 API integration E2E smoke tests (`tests/e2e/v1-api-integration.spec.ts`)
+  - Dashboard load with V1 features enabled
+  - System status with connection indicator
+  - Provisioning tab navigation (feature-flagged)
+  - Allowlist tab navigation (feature-flagged)
+  - Error handling scenarios (network errors, retry capability)
+  - Accessibility tests (ARIA labels, section labels)
+  - Feature flag toggle tests
+
+#### Tests Added
+- useSSE hook unit tests (20 tests)
+- useBatchProvisioningEvents integration tests (22 tests)
+- useSSE reconnection integration tests (19 tests)
+- ConnectionStatus component tests (27 tests)
+- BatchProvisioningSection component tests (13 tests)
+- Batch provisioning E2E tests (13 tests)
+- AllowlistEntryForm component tests (37 tests)
+- AllowlistSection component tests (21 tests)
+- useRecoverableSessions hook integration tests (16 tests)
+- SessionRecoveryBanner component tests (30 tests)
+- useWebSocket hook unit tests (27 tests)
+- useSystemMonitor hook integration tests (21 tests)
+- API key management unit tests (43 tests)
+- ErrorDisplay component tests (47 tests)
+- V1 client error handling tests (36 tests)
+- V1 API integration E2E smoke tests (14 tests)
+
+### Dependencies
+- Added `@radix-ui/react-scroll-area` for ScrollArea component
+- Added `@radix-ui/react-dropdown-menu` for DropdownMenu component
+
+## [1.3.0] - 2026-01-07
+
+### Added - Testing Research & Hardening (Feature 005)
+
+#### Contract Testing [US1]
+- Zod schema validation for all API responses (`src/infrastructure/api/schemas.ts`)
+- Contract tests for system, wifi, config, door, and logs APIs
+- Runtime validation with console warnings for schema drift
+- API contract documentation (`docs/API_CONTRACT.md`)
+
+#### Brittleness Fixes [US2]
+- Added `data-testid` attributes to all major components
+- Replaced CSS class selectors with semantic selectors in tests
+- Removed silent `.catch()` handlers that hid failures
+
+#### Resilience Tests [US3]
+- Network failure E2E tests (`tests/e2e/resilience.spec.ts`)
+- Partial API failure tests (one API fails, others succeed)
+- Offline queue sync tests (`tests/integration/offline/queue-sync.test.tsx`)
+- Conflict resolution tests (`tests/integration/offline/conflict.test.tsx`)
+
+#### BLE Provisioning Tests [US4]
+- Web Bluetooth API mock (`tests/mocks/bluetooth.ts`)
+- BLE test utilities (`tests/mocks/bluetooth-utils.ts`)
+- BluetoothProvisioner unit tests (connection, WiFi write, MQTT write, status)
+- DeviceList component tests (29 tests)
+- useDevices hook integration tests
+
+#### Accessibility Tests [US5]
+- axe-core integration for WCAG 2.1 AA compliance (`tests/e2e/accessibility.spec.ts`)
+- Tab navigation tests (Tab, Enter, Space keys)
+- Arrow key navigation tests
+- Modal focus trap tests
+- Color contrast and touch target size validation
+- Known violations documented for remediation (T078)
+
+#### CI Optimization [US6]
+- Split PR vs nightly workflows for faster feedback
+- E2E smoke tests (chromium only) for PRs
+- Contract tests job in PR workflow
+- Nightly workflow with full browser matrix (`.github/workflows/nightly.yml`)
+- E2E sharding (2 shards per browser)
+- Bundle size check in CI
+
+### Changed
+- Upgraded @playwright/test to 1.57.0 for NixOS compatibility
+- Added @axe-core/playwright 4.11.0 for accessibility testing
+- Updated flake.nix comment with nixpkgs playwright-driver version
+
+### Testing Infrastructure
+- **Unit Tests**: 143+ tests (API, BLE provisioning, utilities)
+- **Component Tests**: 140+ tests with data-testid selectors
+- **Integration Tests**: 90+ tests (hooks, contracts, offline queue)
+- **E2E Tests**: 100+ tests (smoke, accessibility, resilience)
+- **Total**: 572+ tests passing
+
+### Files Added
+- `tests/e2e/accessibility.spec.ts` - Accessibility tests with axe-core
+- `tests/e2e/resilience.spec.ts` - Network failure scenario tests
+- `tests/mocks/bluetooth.ts` - Web Bluetooth API mock
+- `tests/mocks/bluetooth-utils.ts` - BLE test utilities
+- `tests/unit/bluetooth/` - BLE unit tests
+- `tests/component/devices/DeviceList.test.tsx` - Device list component tests
+- `tests/integration/offline/` - Offline queue integration tests
+- `tests/integration/hooks/useDevices.test.tsx` - Device hooks tests
+- `.github/workflows/nightly.yml` - Nightly test workflow with sharding
+- `src/infrastructure/api/schemas.ts` - Zod validation schemas
+- `docs/API_CONTRACT.md` - API contract documentation
+
+---
+
+## [1.2.0] - 2026-01-07
+
+### Added
+- Comprehensive testing infrastructure with NixOS Playwright support
+- Nix flake for reproducible development environment with Playwright browsers
+- Vitest configuration for unit, component, and integration tests
+- MSW (Mock Service Worker) handlers for API mocking
+- Playwright E2E tests for smoke, WiFi, system, and config flows
+- GitHub Actions CI/CD workflow for automated testing
+
+### Testing Infrastructure
+- **Unit Tests** (159 tests): API transformation functions, utilities, query client
+- **Component Tests** (56 tests): NetworkList, DoorControls, MetricCard, ThresholdIndicator, ConfigEditor, LogFilter
+- **Integration Tests** (54 tests): React Query hooks with MSW mocking
+- **E2E Tests** (73 tests per browser): Full user flow coverage with Playwright
+
+### Files Added
+- `flake.nix` - Nix flake with Playwright browser support
+- `playwright.config.ts` - Playwright E2E configuration
+- `vitest.config.ts` - Vitest test runner configuration
+- `.github/workflows/test.yml` - CI/CD workflow
+- `tests/` - Complete test suite structure
+
+### Developer Experience
+- `nix develop` provides Playwright browsers on NixOS
+- `npm run test` for unit/component/integration tests
+- `npm run test:e2e` for E2E tests
+- `npm run test:coverage` for coverage reporting
+- `LIVE_PI_URL` environment variable for testing against real hardware
+
+---
+
 ## [1.1.4] - 2026-01-07
 
 ### Fixed

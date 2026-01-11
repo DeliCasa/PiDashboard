@@ -12,6 +12,7 @@ import {
   DoorOpen,
   FileText,
   Network,
+  Radio,
 } from "lucide-react";
 
 // Presentation layer components (hexagonal architecture)
@@ -24,8 +25,12 @@ import { LogSection } from "@/presentation/components/logs/LogSection";
 import { ConfigSection } from "@/presentation/components/config/ConfigSection";
 import { NetworkSection } from "@/presentation/components/network/NetworkSection";
 import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndicator";
+import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
+import { useBatchProvisioningEnabled } from "@/application/stores/features";
 
 function Dashboard() {
+  const isBatchProvisioningEnabled = useBatchProvisioningEnabled();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -69,6 +74,12 @@ function Dashboard() {
               <Bluetooth className="h-4 w-4" />
               <span className="hidden sm:inline">Devices</span>
             </TabsTrigger>
+            {isBatchProvisioningEnabled && (
+              <TabsTrigger value="provisioning" className="gap-2">
+                <Radio className="h-4 w-4" />
+                <span className="hidden sm:inline">Provisioning</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="cameras" className="gap-2">
               <Camera className="h-4 w-4" />
               <span className="hidden sm:inline">Cameras</span>
@@ -117,6 +128,13 @@ function Dashboard() {
           <TabsContent value="devices">
             <DeviceSection />
           </TabsContent>
+
+          {/* Provisioning Tab */}
+          {isBatchProvisioningEnabled && (
+            <TabsContent value="provisioning">
+              <BatchProvisioningSection />
+            </TabsContent>
+          )}
 
           {/* Cameras Tab */}
           <TabsContent value="cameras">

@@ -1,6 +1,9 @@
 /**
  * NetworkList Component
  * Displays discovered WiFi networks with signal indicators
+ *
+ * Feature: 005-testing-research-and-hardening (T033)
+ * Added data-testid attributes for reliable test selectors.
  */
 
 import { Wifi, Lock, Signal } from 'lucide-react';
@@ -60,7 +63,10 @@ export function NetworkList({
 
   if (sortedNetworks.length === 0) {
     return (
-      <div className={cn('py-8 text-center text-muted-foreground', className)}>
+      <div
+        data-testid="network-list-empty"
+        className={cn('py-8 text-center text-muted-foreground', className)}
+      >
         <Wifi className="mx-auto h-8 w-8 opacity-50" />
         <p className="mt-2 text-sm">No networks found</p>
         <p className="text-xs">Try scanning again</p>
@@ -69,7 +75,7 @@ export function NetworkList({
   }
 
   return (
-    <div className={cn('space-y-1', className)}>
+    <div data-testid="network-list" className={cn('space-y-1', className)}>
       {sortedNetworks.map((network) => {
         const isSelected = network.ssid === selectedSsid;
         const isConnected = network.ssid === connectedSsid;
@@ -78,6 +84,7 @@ export function NetworkList({
         return (
           <button
             key={network.ssid}
+            data-testid={`network-item-${network.ssid.replace(/\s+/g, '-')}`}
             onClick={() => onSelect(network.ssid)}
             className={cn(
               'flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors',
@@ -92,7 +99,7 @@ export function NetworkList({
               <div className="flex items-center gap-2">
                 <span className="font-medium truncate">{network.ssid}</span>
                 {network.secured && (
-                  <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" aria-label="Secured" />
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">

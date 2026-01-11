@@ -34,6 +34,101 @@ npm run build
 npm run preview
 ```
 
+## Testing
+
+The project uses a comprehensive testing infrastructure:
+
+- **Unit Tests**: Vitest with React Testing Library
+- **Component Tests**: Component-level tests with mocked props
+- **Integration Tests**: API hook testing with MSW
+- **E2E Tests**: Playwright with NixOS browser support
+
+### Running Tests
+
+```bash
+# Run all unit and component tests
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run with coverage report
+npm run test:coverage
+
+# Open Vitest UI
+npm run test:ui
+```
+
+### E2E Tests (Playwright)
+
+For NixOS systems, use `nix develop` to get Playwright browsers:
+
+```bash
+# Enter Nix shell (provides Playwright browsers)
+nix develop
+
+# Run E2E tests
+npm run test:e2e
+
+# Run E2E tests with browser visible
+npm run test:e2e:headed
+
+# Debug E2E tests
+npm run test:e2e:debug
+
+# View test report
+npm run test:e2e:report
+```
+
+### Live Pi Testing
+
+Test against a real Raspberry Pi:
+
+```bash
+# Set the Pi's URL
+export LIVE_PI_URL=http://192.168.1.124:8082
+
+# Run live tests
+npm run test:e2e:live
+```
+
+### Test Structure
+
+```
+tests/
+├── setup/              # Test setup and utilities
+│   ├── vitest.setup.ts
+│   └── test-utils.tsx
+├── fixtures/           # Mock data fixtures
+├── unit/               # Unit tests for transformations
+│   ├── api/           # API transformation tests
+│   └── lib/           # Utility tests
+├── component/          # Component render tests
+│   ├── wifi/
+│   ├── door/
+│   ├── system/
+│   ├── config/
+│   └── logs/
+├── integration/        # Hook and API integration tests
+│   ├── mocks/         # MSW handlers
+│   └── hooks/
+└── e2e/               # Playwright E2E tests
+    ├── fixtures/
+    ├── smoke.spec.ts
+    ├── wifi.spec.ts
+    ├── system.spec.ts
+    ├── config.spec.ts
+    └── live-smoke.spec.ts
+```
+
+### Coverage
+
+Current test coverage focuses on:
+- API transformation functions (>80%)
+- Query client utilities (>80%)
+- Critical UI components (NetworkList, MetricCard, etc.)
+- React Query hooks with MSW mocking
+
 ## Raspberry Pi Access
 
 ### SSH Configuration

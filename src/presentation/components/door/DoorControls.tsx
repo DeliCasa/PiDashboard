@@ -1,6 +1,9 @@
 /**
  * DoorControls Component
  * Door control buttons and state display
+ *
+ * Feature: 005-testing-research-and-hardening (T036)
+ * Added data-testid attributes for reliable test selectors.
  */
 
 import { useState } from 'react';
@@ -89,7 +92,7 @@ export function DoorControls({
   // Show error state if API is not available
   if (isError) {
     return (
-      <div className={cn('space-y-4', className)}>
+      <div data-testid="door-controls-error" className={cn('space-y-4', className)}>
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg bg-muted/50 p-6 text-center">
           <AlertCircle className="h-10 w-10 text-muted-foreground" />
           <div>
@@ -105,7 +108,7 @@ export function DoorControls({
 
   if (isLoading || !door) {
     return (
-      <div className={cn('space-y-4', className)}>
+      <div data-testid="door-controls-loading" className={cn('space-y-4', className)}>
         <div className="flex items-center justify-center py-8">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
@@ -117,16 +120,16 @@ export function DoorControls({
   const isLocked = door.lockState === 'locked';
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div data-testid="door-controls" className={cn('space-y-4', className)}>
       {/* Current State Display */}
-      <div className="flex items-center justify-center gap-4 rounded-lg bg-muted p-6">
+      <div data-testid="door-state-display" className="flex items-center justify-center gap-4 rounded-lg bg-muted p-6">
         <div className="text-center">
           {isOpen ? (
             <DoorOpen className="mx-auto h-12 w-12 text-yellow-500" />
           ) : (
             <DoorClosed className="mx-auto h-12 w-12 text-green-500" />
           )}
-          <p className="mt-2 font-medium capitalize">{door.state}</p>
+          <p data-testid="door-state" className="mt-2 font-medium capitalize">{door.state}</p>
         </div>
         <div className="text-center">
           {isLocked ? (
@@ -134,7 +137,7 @@ export function DoorControls({
           ) : (
             <Unlock className="mx-auto h-8 w-8 text-yellow-500" />
           )}
-          <p className="mt-2 text-sm text-muted-foreground capitalize">
+          <p data-testid="door-lock-state" className="mt-2 text-sm text-muted-foreground capitalize">
             {door.lockState}
           </p>
         </div>
@@ -160,6 +163,7 @@ export function DoorControls({
       {/* Control Buttons */}
       <div className="flex gap-2">
         <Button
+          data-testid="door-open-button"
           onClick={handleOpenClick}
           disabled={isOpening || isClosing}
           className="flex-1"
@@ -169,6 +173,7 @@ export function DoorControls({
           {isOpening ? 'Opening...' : 'Open Door'}
         </Button>
         <Button
+          data-testid="door-close-button"
           onClick={handleCloseClick}
           disabled={isOpening || isClosing}
           variant={isOpen ? 'default' : 'outline'}

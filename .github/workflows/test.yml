@@ -1,0 +1,333 @@
+# Pi Dashboard Test Workflow (T079-T081)
+#
+# Fast PR checks with essential tests only.
+# Full browser matrix testing happens in nightly workflow.
+# Uses Nix flake for reproducible environment with Playwright browser support.
+
+name: Test
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch: # Allow manual trigger
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Unit and Component Tests (fast, no browsers needed)
+  unit-tests:
+    name: Unit & Component Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # Contract Tests (T081) - Verify API schema compliance
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run contract tests
+        run: npm test -- --run --grep "contract"
+
+  # E2E Smoke Tests (T080) - Chromium only for PR speed
+  e2e-smoke:
+    name: E2E Smoke Tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-tests # Only run if unit tests pass
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      # Magic Nix Cache - 30-50% faster CI builds
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: nix-community
+
+      - name: Install dependencies in Nix shell
+        run: nix develop --command npm ci
+
+      - name: Build application
+        run: nix develop --command npm run build
+
+      - name: Run E2E smoke tests (Chromium only)
+        run: nix develop --command npx playwright test --project=chromium tests/e2e/smoke.spec.ts tests/e2e/wifi.spec.ts tests/e2e/system.spec.ts
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-smoke
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-smoke
+          path: test-results/
+          retention-days: 7
+
+      # Upload traces separately for easier debugging on failure
+      - name: Upload Playwright traces on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-smoke
+          path: |
+            test-results/**/*.zip
+            test-results/**/*.png
+            test-results/**/*.webm
+          retention-days: 14
+
+  # Coverage check
+  coverage:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Check coverage thresholds
+        run: |
+          # Parse coverage summary and check thresholds
+          node -e "
+            const fs = require('fs');
+            const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf-8'));
+            const total = summary.total;
+            const threshold = 70;
+
+            const metrics = ['lines', 'statements', 'functions', 'branches'];
+            let passed = true;
+
+            console.log('Coverage Summary:');
+            metrics.forEach(m => {
+              const pct = total[m].pct;
+              const status = pct >= threshold ? '✓' : '✗';
+              console.log('  ' + status + ' ' + m + ': ' + pct + '% (threshold: ' + threshold + '%)');
+              if (pct < threshold) passed = false;
+            });
+
+            if (!passed) {
+              console.log('');
+              console.log('❌ Coverage below threshold!');
+              process.exit(1);
+            }
+            console.log('');
+            console.log('✅ Coverage meets threshold!');
+          "
+
+  # Lint check
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+  # Type check
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npx tsc --noEmit
+
+  # Security audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true # Don't fail build, just report
+
+  # Bundle size check (T084-T085)
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and check bundle size
+        run: |
+          npm run build
+          echo "📦 Bundle Size Report:"
+          # List all JS chunks with sizes
+          find dist/assets -name "*.js" -exec ls -lh {} \; | awk '{print $5, $9}'
+          # Check if main bundle exceeds 500KB
+          MAIN_SIZE=$(find dist/assets -name "index-*.js" -exec stat -f%z {} 2>/dev/null || find dist/assets -name "index-*.js" -exec stat --format=%s {} \;)
+          if [ "$MAIN_SIZE" -gt 512000 ]; then
+            echo "⚠️  Warning: Main bundle size ($MAIN_SIZE bytes) exceeds 500KB"
+          else
+            echo "✅ Main bundle size ($MAIN_SIZE bytes) is within budget"
+          fi
+
+  # Summary job that depends on all others
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, contract-tests, e2e-smoke, coverage, lint, typecheck, bundle-size]
+    if: always()
+
+    steps:
+      - name: Check test results
+        env:
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          CONTRACT_RESULT: ${{ needs.contract-tests.result }}
+          E2E_RESULT: ${{ needs.e2e-smoke.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          BUNDLE_RESULT: ${{ needs.bundle-size.result }}
+        run: |
+          if [[ "$UNIT_RESULT" != "success" ]]; then
+            echo "❌ Unit tests failed"
+            exit 1
+          fi
+          if [[ "$CONTRACT_RESULT" != "success" ]]; then
+            echo "❌ Contract tests failed"
+            exit 1
+          fi
+          if [[ "$E2E_RESULT" != "success" ]]; then
+            echo "❌ E2E smoke tests failed"
+            exit 1
+          fi
+          if [[ "$COVERAGE_RESULT" != "success" ]]; then
+            echo "❌ Coverage check failed"
+            exit 1
+          fi
+          if [[ "$LINT_RESULT" != "success" ]]; then
+            echo "❌ Lint check failed"
+            exit 1
+          fi
+          if [[ "$TYPECHECK_RESULT" != "success" ]]; then
+            echo "❌ Type check failed"
+            exit 1
+          fi
+          if [[ "$BUNDLE_RESULT" != "success" ]]; then
+            echo "⚠️ Bundle size check had issues (non-blocking)"
+          fi
+          echo "✅ All checks passed!"

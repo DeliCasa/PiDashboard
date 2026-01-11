@@ -1,6 +1,9 @@
 /**
  * ConfigEditor Component
  * Inline editor for configuration values with type-specific inputs
+ *
+ * Feature: 005-testing-research-and-hardening (T037)
+ * Added data-testid attributes for reliable test selectors.
  */
 
 import { useState } from 'react';
@@ -167,6 +170,7 @@ export function ConfigEditor({
 
   return (
     <div
+      data-testid={`config-editor-${entry.key.replace(/\./g, '-')}`}
       className={cn(
         'flex items-center justify-between rounded-lg border p-3 transition-colors',
         isEditing && 'border-primary bg-muted/50',
@@ -176,13 +180,13 @@ export function ConfigEditor({
       {/* Left: Key and Description */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-medium">{entry.key}</span>
+          <span data-testid="config-key" className="font-mono text-sm font-medium">{entry.key}</span>
           <Badge variant="outline" className="text-xs capitalize">
             {entry.category}
           </Badge>
           {!entry.editable && (
             <Tooltip>
-              <TooltipTrigger>
+              <TooltipTrigger aria-label="Read-only">
                 <Lock className="h-3 w-3 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>Read-only configuration</TooltipContent>
@@ -221,6 +225,7 @@ export function ConfigEditor({
               className="h-8 w-8 p-0 text-green-500 hover:text-green-600"
               onClick={handleSave}
               disabled={isSaving || !hasChanged}
+              aria-label="Save"
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -230,6 +235,7 @@ export function ConfigEditor({
               className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
               onClick={handleCancel}
               disabled={isSaving}
+              aria-label="Cancel"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -253,6 +259,7 @@ export function ConfigEditor({
             )}
             {entry.editable && (
               <Button
+                data-testid="config-edit-button"
                 variant="outline"
                 size="sm"
                 onClick={() => setIsEditing(true)}
@@ -269,6 +276,7 @@ export function ConfigEditor({
                     className="h-8 w-8 p-0"
                     onClick={handleReset}
                     disabled={isSaving}
+                    aria-label="Reset to default"
                   >
                     <RotateCcw className="h-4 w-4" />
                   </Button>

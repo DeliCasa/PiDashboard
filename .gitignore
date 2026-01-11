@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+*.test.ts.snap
+
+# Nix
+result
+.direnv/
+
+# Environment
+.env
+.env.local
+.env.test.local

@@ -269,9 +269,109 @@ Uses DeliCasa brand colors with CSS custom properties for light/dark theming:
 - **NextClient**: `/home/notroot/Documents/Code/CITi/DeliCasa/NextClient` - Main web app
 - **BridgeServer**: `/home/notroot/Documents/Code/CITi/DeliCasa/BridgeServer` - API gateway
 
+## Testing Infrastructure
+
+### Test Commands
+
+```bash
+npm test                    # Run unit/integration tests (Vitest)
+npm run test:coverage       # Run tests with coverage report
+npm run test:e2e            # Run E2E tests with Playwright
+npm run test:all            # Run all tests (unit + E2E)
+```
+
+### Test Structure (Feature 005)
+
+```
+tests/
+├── unit/                   # Unit tests
+│   ├── api/                # API client tests
+│   ├── bluetooth/          # BLE provisioning tests
+│   ├── lib/                # Utility tests
+│   └── offline/            # Offline queue tests
+├── component/              # Component tests (React Testing Library)
+│   ├── config/             # ConfigEditor tests
+│   ├── devices/            # DeviceList tests
+│   ├── door/               # DoorControls tests
+│   ├── logs/               # LogFilter tests
+│   ├── system/             # MetricCard, ThresholdIndicator tests
+│   └── wifi/               # NetworkList tests
+├── integration/            # Integration tests
+│   ├── contracts/          # API contract tests (Zod validation)
+│   ├── hooks/              # React Query hook tests
+│   ├── mocks/              # MSW handlers and types
+│   └── offline/            # Offline sync/conflict tests
+├── e2e/                    # E2E tests (Playwright)
+│   ├── fixtures/           # Test base and mock routes
+│   ├── accessibility.spec.ts   # WCAG 2.1 AA compliance (axe-core)
+│   ├── resilience.spec.ts      # Network failure scenarios
+│   └── *.spec.ts           # Feature-specific E2E tests
+├── mocks/                  # Test mocks
+│   ├── bluetooth.ts        # Web Bluetooth API mock
+│   └── bluetooth-utils.ts  # BLE test utilities
+└── setup/                  # Test setup files
+```
+
+### Test Coverage Summary
+
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Unit | 140+ | API clients, BLE provisioning, utilities |
+| Component | 140+ | UI components with data-testid selectors |
+| Integration | 90+ | Hook tests, contract tests, offline queue |
+| E2E | 100+ | Smoke, accessibility, resilience tests |
+
+### CI/CD Workflows
+
+**PR Workflow** (`.github/workflows/test.yml`):
+- Unit & component tests (fast)
+- Contract tests (API schema validation)
+- E2E smoke tests (chromium only)
+- Coverage check (70% threshold)
+- Bundle size check
+
+**Nightly Workflow** (`.github/workflows/nightly.yml`):
+- Full test suite
+- Multi-browser matrix (Chromium, Firefox)
+- E2E sharding (2 shards per browser)
+- Accessibility tests (axe-core)
+- Resilience/network failure tests
+
+### Contract Testing
+
+API responses are validated against Zod schemas in `src/infrastructure/api/schemas.ts`:
+- SystemInfoSchema
+- WifiSchemas (status, network, scan)
+- ConfigSchemas (item, section, response)
+- DoorSchemas (state, status, command)
+- LogsSchemas (entry, response)
+
+### Known Accessibility Violations (T078)
+
+The following a11y issues are tracked for remediation:
+- `color-contrast`: yellow-500, green-500, muted colors need fixes
+- `aria-progressbar-name`: Progress component needs aria-label
+- `button-name`: Switch/Select components need aria-labels
+
+### Running E2E Tests on NixOS
+
+The project uses Nix flake for Playwright browser management:
+
+```bash
+# Enter Nix development shell (sets PLAYWRIGHT_BROWSERS_PATH)
+nix develop
+
+# Run E2E tests
+npm run test:e2e
+
+# Run specific test file
+npx playwright test tests/e2e/accessibility.spec.ts --project=chromium
+```
+
 ## Important Notes
 
 - Always test changes locally before deploying to Pi
 - The Pi runs 24/7 as the IoT controller - avoid breaking deployments
 - Tailscale Funnel URLs are public - don't expose sensitive endpoints
 - The dashboard proxies to port 8082 (config UI), not 8081 (main API)
+- Run `npm test` before committing to ensure tests pass

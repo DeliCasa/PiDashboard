@@ -1,12 +1,22 @@
 /**
  * Config API Service
  * Configuration management endpoints
+ *
+ * Feature: 005-testing-research-and-hardening (T023)
+ * Includes Zod schema validation for runtime API contract enforcement.
  */
 
 import { apiClient } from './client';
+import {
+  ConfigResponseSchema,
+  ConfigUpdateResponseSchema,
+  ConfigResetResponseSchema,
+  safeParseWithErrors,
+} from './schemas';
 import type { ConfigEntry, ConfigCategory } from '@/domain/types/entities';
 
 // Backend response types
+// NOTE: V1 envelope is unwrapped by proxy, so success is not at top level
 interface ConfigApiResponse {
   sections: Array<{
     name: string;
@@ -27,11 +37,13 @@ interface ConfigApiResponse {
       };
     }>;
   }>;
-  success: boolean;
 }
 
-// Map section names to ConfigCategory
-function mapSectionToCategory(sectionName: string): ConfigCategory {
+/**
+ * Map section names to ConfigCategory
+ * @exported for unit testing (T017)
+ */
+export function mapSectionToCategory(sectionName: string): ConfigCategory {
   const map: Record<string, ConfigCategory> = {
     'Server': 'system',
     'System': 'system',
@@ -52,10 +64,16 @@ function mapSectionToCategory(sectionName: string): ConfigCategory {
 export const configApi = {
   /**
    * Get all configuration entries
-   * Transforms backend nested sections to flat ConfigEntry array
+   * Validates response and transforms backend nested sections to flat ConfigEntry array.
    */
   get: async (): Promise<ConfigEntry[]> => {
     const response = await apiClient.get<ConfigApiResponse>('/dashboard/config');
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(ConfigResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] Config get validation failed:', validation.errors);
+    }
 
     // Transform nested sections to flat array
     const entries: ConfigEntry[] = [];
@@ -82,18 +100,38 @@ export const configApi = {
 
   /**
    * Update a configuration value
+   * Validates response against schema.
    */
-  update: (key: string, value: string) =>
-    apiClient.put<{ success: boolean }>(
+  update: async (key: string, value: string): Promise<{ success: boolean }> => {
+    const response = await apiClient.put<{ success: boolean }>(
       `/dashboard/config/${encodeURIComponent(key)}`,
       { value }
-    ),
+    );
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(ConfigUpdateResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] Config update validation failed:', validation.errors);
+    }
+
+    return response;
+  },
 
   /**
    * Reset a configuration value to default
+   * Validates response against schema.
    */
-  reset: (key: string) =>
-    apiClient.post<{ success: boolean; value?: string }>(
+  reset: async (key: string): Promise<{ success: boolean; value?: string }> => {
+    const response = await apiClient.post<{ success: boolean; value?: string }>(
       `/dashboard/config/${encodeURIComponent(key)}/reset`
-    ),
+    );
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(ConfigResetResponseSchema, response);
+    if (!validation.success) {
+      console.warn('[API Contract] Config reset validation failed:', validation.errors);
+    }
+
+    return response;
+  },
 };

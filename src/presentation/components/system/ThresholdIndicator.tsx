@@ -1,6 +1,9 @@
 /**
  * ThresholdIndicator Component
  * Visual indicator for threshold status with color coding
+ *
+ * Feature: 005-testing-research-and-hardening (T035)
+ * Added data-testid attributes for reliable test selectors.
  */
 
 import { cn } from '@/lib/utils';
@@ -47,6 +50,7 @@ export function ThresholdIndicator({
   if (!showLabel) {
     return (
       <span
+        data-testid={`threshold-dot-${status}`}
         className={cn(
           'rounded-full animate-pulse',
           dotSizes[size],
@@ -59,6 +63,7 @@ export function ThresholdIndicator({
 
   return (
     <Badge
+      data-testid={`threshold-badge-${status}`}
       variant="outline"
       className={cn(statusBadgeVariants[status], className)}
     >

@@ -1,52 +1,34 @@
 /**
  * System API Service
  * System health and status endpoints
+ *
+ * Feature: 005-testing-research-and-hardening (T021)
+ * Includes Zod schema validation for runtime API contract enforcement.
  */
 
 import { apiClient } from './client';
+import {
+  SystemInfoResponseSchema,
+  safeParseWithErrors,
+} from './schemas';
+import type { RawSystemInfoResponse } from './schemas';
 import type { SystemStatus, PiModel } from '@/domain/types/entities';
 import type { HealthCheckResponse } from '@/domain/types/api';
 
-/**
- * Raw API response from PiOrchestrator /api/system/info
- */
-interface RawSystemInfoResponse {
-  success: boolean;
-  data: {
-    timestamp: string;
-    cpu: {
-      usage_percent: number;
-      core_count: number;
-      per_core: number[];
-    };
-    memory: {
-      used_mb: number;
-      total_mb: number;
-      used_percent: number;
-      available_mb: number;
-    };
-    disk: {
-      used_gb: number;
-      total_gb: number;
-      used_percent: number;
-      path: string;
-    };
-    temperature_celsius: number;
-    uptime: number; // nanoseconds
-    load_average: {
-      load_1: number;
-      load_5: number;
-      load_15: number;
-    };
-    overall_status: string;
-  };
-}
+// Re-export the type for backward compatibility
+export type { RawSystemInfoResponse };
 
 /**
  * Transform raw API response to frontend SystemStatus type
+ * @exported for unit testing (T023)
+ *
+ * Note: Schema validation happens at the API call level (getInfo),
+ * so this function assumes valid data.
+ * NOTE: V1 envelope is unwrapped by proxy, so we receive data directly.
  */
-function transformSystemInfo(raw: RawSystemInfoResponse): SystemStatus {
-  const { data } = raw;
+export function transformSystemInfo(raw: RawSystemInfoResponse): SystemStatus {
+  // V1 envelope is unwrapped - data is the response itself now
+  const data = raw;
   const uptimeSeconds = Math.floor(data.uptime / 1_000_000_000);
 
   // Format uptime as human-readable string
@@ -84,9 +66,18 @@ function transformSystemInfo(raw: RawSystemInfoResponse): SystemStatus {
 export const systemApi = {
   /**
    * Get current system status (CPU, memory, disk, temperature)
+   * Validates response against Zod schema before transformation.
    */
   getInfo: async (): Promise<SystemStatus> => {
     const raw = await apiClient.get<RawSystemInfoResponse>('/system/info');
+
+    // Validate API response against schema
+    const validation = safeParseWithErrors(SystemInfoResponseSchema, raw);
+    if (!validation.success) {
+      console.warn('[API Contract] System info validation failed:', validation.errors);
+      // Still proceed with transformation - graceful degradation
+    }
+
     return transformSystemInfo(raw);
   },
 
