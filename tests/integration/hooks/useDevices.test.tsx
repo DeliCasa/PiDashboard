@@ -51,7 +51,8 @@ describe('Device Hooks Integration (T067)', () => {
       const { result } = renderHook(() => useDevices(false), { wrapper });
 
       expect(result.current.isFetching).toBe(false);
-      expect(result.current.data).toBeUndefined();
+      // 028-api-compat: data is always an array for safer consumption
+      expect(result.current.data).toEqual([]);
     });
 
     it('should return devices with correct structure', async () => {
@@ -336,7 +337,8 @@ describe('Provisioning Hooks Integration (T068)', () => {
       const { result } = renderHook(() => useProvisioningHistory(false), { wrapper });
 
       expect(result.current.isFetching).toBe(false);
-      expect(result.current.data).toBeUndefined();
+      // 028-api-compat: data is always an array for safer consumption
+      expect(result.current.data).toEqual([]);
     });
 
     it('should handle history fetch error', async () => {

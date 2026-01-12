@@ -193,6 +193,17 @@ The Vite dev server proxies `/api` requests to `http://localhost:8082`:
 
 3. Open http://localhost:5173 in browser
 
+### Advanced: Custom API Origin
+
+For testing against a different backend (e.g., staging server), you can override the API origin:
+
+```bash
+# Set custom API origin for development
+VITE_API_ORIGIN=http://staging-server:8082 npm run dev
+```
+
+Note: This is for development only. In production, the dashboard uses same-origin relative URLs (`/api/...`) since it's served from PiOrchestrator on port 8082.
+
 ## API Endpoints
 
 The PiOrchestrator backend provides these endpoints:
@@ -375,3 +386,10 @@ npx playwright test tests/e2e/accessibility.spec.ts --project=chromium
 - Tailscale Funnel URLs are public - don't expose sensitive endpoints
 - The dashboard proxies to port 8082 (config UI), not 8081 (main API)
 - Run `npm test` before committing to ensure tests pass
+
+## Active Technologies
+- TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI (001-api-compat-integration)
+- N/A (API proxied to PiOrchestrator Go backend) (001-api-compat-integration)
+
+## Recent Changes
+- 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI

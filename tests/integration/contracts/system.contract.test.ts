@@ -134,14 +134,16 @@ describe('System API Contracts', () => {
 
     it('rejects response without timestamp', () => {
       // V1 envelope is unwrapped - timestamp is required
-      const { timestamp: _unused, ...invalid } = validSystemInfoResponse;
+      const { timestamp: _timestamp, ...invalid } = validSystemInfoResponse;
+      void _timestamp; // Intentionally destructured to exclude from object
       const result = SystemInfoResponseSchema.safeParse(invalid);
       expect(result.success).toBe(false);
     });
 
     it('rejects response without cpu', () => {
       // V1 envelope is unwrapped - cpu is required
-      const { cpu: _unused, ...invalid } = validSystemInfoResponse;
+      const { cpu: _cpu, ...invalid } = validSystemInfoResponse;
+      void _cpu; // Intentionally destructured to exclude from object
       const result = SystemInfoResponseSchema.safeParse(invalid);
       expect(result.success).toBe(false);
     });

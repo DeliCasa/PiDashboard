@@ -6,12 +6,9 @@
 
 import { http, HttpResponse, delay } from 'msw';
 import type {
-  WiFiScanApiResponse,
   WiFiStatusApiResponse,
   WiFiConnectApiResponse,
-  RawSystemInfoResponse,
   HealthCheckApiResponse,
-  ConfigApiResponse,
   DoorStatusApiResponse,
   DoorCommandApiResponse,
   LogsApiResponse,

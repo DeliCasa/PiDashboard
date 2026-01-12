@@ -29,6 +29,8 @@ import {
   isSSEError,
   isHeartbeat,
 } from '@/domain/types/sse';
+import { getSSEEndpoint } from '@/infrastructure/api/routes';
+import { ensureArray } from '@/lib/normalize';
 
 // ============================================================================
 // Types
@@ -121,16 +123,19 @@ export function useBatchProvisioningEvents(
   } = options;
 
   // State
+  // Defensive: ensure initialDevices is always an array (028-api-compat)
   const [session, setSession] = useState<BatchProvisioningSession | null>(initialSession ?? null);
-  const [devices, setDevices] = useState<ProvisioningCandidate[]>(initialDevices);
+  const [devices, setDevices] = useState<ProvisioningCandidate[]>(
+    ensureArray(initialDevices)
+  );
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(
     initialNetworkStatus ?? null
   );
 
-  // Build SSE URL
+  // Build SSE URL using centralized routes (028-api-compat)
   const sseUrl = useMemo(() => {
     if (!sessionId) return null;
-    return `/api/v1/provisioning/batch/events?session_id=${encodeURIComponent(sessionId)}`;
+    return getSSEEndpoint(sessionId);
   }, [sessionId]);
 
   // Handle SSE events
@@ -287,7 +292,8 @@ export function useBatchProvisioningEvents(
   }, []);
 
   const updateDevices = useCallback((newDevices: ProvisioningCandidate[]) => {
-    setDevices(newDevices);
+    // Defensive: ensure newDevices is always an array (028-api-compat)
+    setDevices(ensureArray(newDevices));
   }, []);
 
   return {
