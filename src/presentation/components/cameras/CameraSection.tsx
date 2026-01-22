@@ -34,6 +34,7 @@ import { CapturePreview } from './CapturePreview';
 import { CameraDetail } from './CameraDetail';
 import { RebootDialog } from './RebootDialog';
 import { DiagnosticsView } from './DiagnosticsView';
+import { AutoOnboardPanel } from '@/presentation/components/auto-onboard';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { V1ApiError, getUserMessage } from '@/infrastructure/api/errors';
@@ -166,6 +167,9 @@ export function CameraSection({ className }: CameraSectionProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Auto-onboard panel - shows only when available (FR-027) */}
+        <AutoOnboardPanel className="mb-6" />
+
         {isLoading ? (
           // Loading state (T014)
           <div className="py-8 text-center text-muted-foreground" data-testid="camera-loading">
