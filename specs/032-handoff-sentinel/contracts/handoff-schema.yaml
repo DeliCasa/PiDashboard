@@ -1,0 +1,198 @@
+# Handoff Document Schema
+# Version: 1.0.0
+# Date: 2026-01-13
+#
+# This schema defines the YAML frontmatter structure for handoff documents.
+# Used for validation in both detection and generation scripts.
+
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "https://delicasa.io/schemas/handoff-v1.json"
+title: Handoff Document Frontmatter
+description: Schema for cross-repo handoff document metadata
+type: object
+
+required:
+  - handoff_id
+  - direction
+  - from_repo
+  - to_repo
+  - created_at
+  - status
+
+properties:
+  handoff_id:
+    type: string
+    description: Unique identifier for the handoff
+    pattern: "^[0-9]{3}-[a-z][a-z0-9-]*$"
+    examples:
+      - "031-backend-gaps"
+      - "032-handoff-sentinel"
+
+  direction:
+    type: string
+    description: Whether this handoff is incoming to or outgoing from this repo
+    enum:
+      - incoming
+      - outgoing
+
+  from_repo:
+    type: string
+    description: Source repository name
+    minLength: 1
+    examples:
+      - "PiOrchestrator"
+      - "PiDashboard"
+
+  to_repo:
+    type: string
+    description: Target repository name
+    minLength: 1
+    examples:
+      - "PiDashboard"
+      - "PiOrchestrator"
+
+  created_at:
+    type: string
+    description: ISO 8601 datetime when handoff was created
+    format: date-time
+    examples:
+      - "2026-01-13T10:30:00Z"
+      - "2026-01-12"
+
+  status:
+    type: string
+    description: Current lifecycle status of the handoff
+    enum:
+      - new
+      - acknowledged
+      - in_progress
+      - done
+      - blocked
+    default: new
+
+  related_prs:
+    type: array
+    description: Pull request URLs related to this handoff
+    items:
+      type: string
+      format: uri
+    default: []
+    examples:
+      - ["https://github.com/DeliCasa/PiDashboard/pull/42"]
+
+  related_commits:
+    type: array
+    description: Commit SHAs related to this handoff
+    items:
+      type: string
+      pattern: "^[a-f0-9]{7,40}$"
+    default: []
+    examples:
+      - ["abc1234", "def5678"]
+
+  requires:
+    type: array
+    description: List of requirements for consuming this handoff
+    items:
+      type: object
+      required:
+        - type
+        - description
+      properties:
+        type:
+          type: string
+          description: Category of requirement
+          enum:
+            - api
+            - route
+            - ui
+            - deploy
+            - test
+            - docs
+        description:
+          type: string
+          description: What needs to be done
+          minLength: 1
+    default: []
+    examples:
+      - - type: api
+          description: "Implement /api/wifi/scan with real hardware"
+        - type: deploy
+          description: "Rebuild PiOrchestrator binary"
+
+  acceptance:
+    type: array
+    description: Acceptance criteria that must be met
+    items:
+      type: string
+      minLength: 1
+    default: []
+    examples:
+      - - "WiFi scan returns real networks"
+        - "Connection succeeds with valid credentials"
+
+  verification:
+    type: array
+    description: Steps to verify the handoff was successfully consumed
+    items:
+      type: string
+      minLength: 1
+    default: []
+    examples:
+      - - "curl /api/wifi/scan returns non-mock data"
+        - "Dashboard shows real WiFi networks"
+
+  risks:
+    type: array
+    description: Potential risks or concerns
+    items:
+      type: string
+    default: []
+
+  notes:
+    type: string
+    description: Free-form notes about the handoff
+    default: ""
+
+# Conditional validation based on direction
+allOf:
+  - if:
+      properties:
+        direction:
+          const: outgoing
+    then:
+      properties:
+        from_repo:
+          const: PiDashboard
+
+  - if:
+      properties:
+        direction:
+          const: incoming
+    then:
+      properties:
+        to_repo:
+          const: PiDashboard
+
+# Example valid document
+examples:
+  - handoff_id: "031-backend-gaps"
+    direction: outgoing
+    from_repo: PiDashboard
+    to_repo: PiOrchestrator
+    created_at: "2026-01-12T23:39:00Z"
+    status: new
+    requires:
+      - type: api
+        description: "Implement real WiFi scanning in dual_wifi_manager.go"
+      - type: api
+        description: "Implement real WiFi connection via wpa_supplicant"
+    acceptance:
+      - "WiFi scan returns actual nearby networks"
+      - "WiFi connect successfully joins specified network"
+    verification:
+      - "curl http://localhost:8082/api/wifi/scan returns real SSIDs"
+      - "Dashboard WiFi page shows actual networks"
+    risks:
+      - "Requires sudo/root access for iwlist command"
+    notes: "See docs/HANDOFF_031_PIORCHESTRATOR_BACKEND_GAPS.md for full details"

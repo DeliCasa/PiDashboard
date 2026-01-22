@@ -1,6 +1,7 @@
 /**
  * Logs Hooks
- * React Query hooks for log fetching via polling (backend returns JSON, not SSE)
+ * React Query hooks for log fetching via SSE streaming
+ * Updated: HANDOFF_031 Issue 4 - Use V1 SSE endpoint
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -11,6 +12,7 @@ import type { LogEntry } from '@/domain/types/entities';
 
 /**
  * Hook for fetching recent logs (alias for useRecentLogs)
+ * @deprecated Prefer useLogStream() for real-time SSE streaming
  */
 export function useLogs(
   params?: { level?: string; search?: string; limit?: number },
@@ -21,12 +23,13 @@ export function useLogs(
     queryFn: () => logsApi.getRecent(params),
     enabled,
     staleTime: 5000,
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 5000, // Poll every 5 seconds (fallback)
   });
 }
 
 /**
  * Hook for fetching recent logs
+ * @deprecated Prefer useLogStream() for real-time SSE streaming
  */
 export function useRecentLogs(
   params?: { level?: string; search?: string; limit?: number },
@@ -50,65 +53,83 @@ export function useExportDiagnostics() {
 }
 
 /**
- * Hook for log polling (replacement for SSE streaming)
- * Backend returns JSON {count, logs} instead of SSE stream
+ * Hook for real-time log streaming via SSE
+ * Uses V1 endpoint: /api/v1/dashboard/logs (HANDOFF_031 Issue 4)
+ *
+ * Falls back to polling if SSE connection fails after 3 attempts.
  */
-export function useLogStream(level?: string) {
+export function useLogStream(_level?: string) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxLogs = 500; // Keep last 500 entries per spec
+  const maxReconnectAttempts = 3;
 
-  const fetchLogs = useCallback(async () => {
+  const addLog = useCallback((entry: LogEntry) => {
+    setLogs((prevLogs) => {
+      // Check for duplicate by timestamp+message
+      const key = `${entry.timestamp}-${entry.message}`;
+      const exists = prevLogs.some(l => `${l.timestamp}-${l.message}` === key);
+      if (exists) return prevLogs;
+
+      // Add new log and keep only last maxLogs
+      const updated = [...prevLogs, entry];
+      return updated.slice(-maxLogs);
+    });
+  }, []);
+
+  const connect = useCallback(() => {
+    // Clean up existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    setError(null);
+
     try {
-      const params: Record<string, string | number | boolean | undefined> = {
-        limit: 100,
-      };
-      if (level && level !== 'all') {
-        params.level = level;
-      }
-      const newLogs = await logsApi.getRecent(params);
+      eventSourceRef.current = logsApi.streamLogs(
+        (entry) => {
+          addLog(entry);
+          setConnected(true);
+          reconnectAttemptsRef.current = 0; // Reset on successful message
+        },
+        (_event) => {
+          setConnected(false);
 
-      setLogs((prevLogs) => {
-        // If no new logs, just mark as connected
-        if (!newLogs || newLogs.length === 0) {
-          return prevLogs;
+          // Attempt reconnection with backoff
+          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+            reconnectAttemptsRef.current++;
+            const delay = Math.pow(2, reconnectAttemptsRef.current) * 1000;
+            setError(`Connection lost. Reconnecting in ${delay / 1000}s...`);
+
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connect();
+            }, delay);
+          } else {
+            setError('Unable to connect to log stream. Check backend availability.');
+          }
         }
-        // Merge new logs, avoiding duplicates by timestamp+message
-        const existing = new Set(prevLogs.map(l => `${l.timestamp}-${l.message}`));
-        const uniqueNew = newLogs.filter(l => !existing.has(`${l.timestamp}-${l.message}`));
-        const merged = [...prevLogs, ...uniqueNew];
-        // Keep only the last maxLogs entries
-        return merged.slice(-maxLogs);
-      });
+      );
 
+      // Mark as connecting (will be confirmed on first message)
       setConnected(true);
-      setError(null);
     } catch (e) {
       setConnected(false);
-      setError(e instanceof Error ? e.message : 'Failed to fetch logs');
+      setError(e instanceof Error ? e.message : 'Failed to connect to log stream');
     }
-  }, [level]);
+  }, [addLog]);
 
-  const startPolling = useCallback(() => {
-    // Initial fetch
-    fetchLogs();
-
-    // Clear any existing interval
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
+  const disconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
-
-    // Poll every 3 seconds
-    pollingIntervalRef.current = setInterval(fetchLogs, 3000);
-    setConnected(true);
-  }, [fetchLogs]);
-
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
     setConnected(false);
   }, []);
@@ -117,21 +138,27 @@ export function useLogStream(level?: string) {
     setLogs([]);
   }, []);
 
-  // Start polling on mount, stop on unmount
+  const reconnect = useCallback(() => {
+    reconnectAttemptsRef.current = 0;
+    disconnect();
+    connect();
+  }, [connect, disconnect]);
+
+  // Connect on mount, disconnect on unmount
   useEffect(() => {
-    startPolling();
+    connect();
 
     return () => {
-      stopPolling();
+      disconnect();
     };
-  }, [startPolling, stopPolling]);
+  }, [connect, disconnect]);
 
   return {
     logs,
     connected,
     error,
     clearLogs,
-    reconnect: startPolling,
-    disconnect: stopPolling,
+    reconnect,
+    disconnect,
   };
 }

@@ -1,12 +1,13 @@
 /**
  * Logs API Service
- * Log fetching and export endpoints (backend returns JSON, not SSE)
+ * Log fetching via SSE streaming and export endpoints
  *
  * Feature: 005-testing-research-and-hardening (T025)
+ * Updated: HANDOFF_031 Issue 4 - Use V1 SSE endpoint
  * Includes Zod schema validation for runtime API contract enforcement.
  */
 
-import { apiClient, buildUrl } from './client';
+import { apiClient, buildUrl, getApiBaseUrl } from './client';
 import {
   LogsResponseSchema,
   DiagnosticReportSchema,
@@ -16,7 +17,7 @@ import type { LogEntry, DiagnosticReport } from '@/domain/types/entities';
 
 type LogsParams = Record<string, string | number | boolean | undefined>;
 
-// Backend response type
+// Backend response type (for legacy polling fallback)
 interface LogsApiResponse {
   count: number;
   logs: LogEntry[];
@@ -27,8 +28,8 @@ interface LogsApiResponse {
  */
 export const logsApi = {
   /**
-   * Get recent log entries
-   * Validates response and returns logs array.
+   * Get recent log entries (legacy polling - fallback)
+   * @deprecated Use streamLogs() for real-time updates via SSE
    */
   getRecent: async (params?: LogsParams): Promise<LogEntry[]> => {
     const response = await apiClient.get<LogsApiResponse>(buildUrl('/dashboard/logs', params));
@@ -40,7 +41,42 @@ export const logsApi = {
     }
 
     // Transform backend response to array
-    return response.logs || [];
+    return response.logs ?? [];
+  },
+
+  /**
+   * Stream logs via Server-Sent Events (SSE)
+   * Uses V1 endpoint: /api/v1/system/logs/stream
+   * Per HANDOFF_PIORCH_DASHBOARD_INTEGRATION Section 7.3
+   *
+   * @param onLog - Callback for each log entry received
+   * @param onError - Callback for connection errors
+   * @returns EventSource instance for cleanup
+   */
+  streamLogs: (
+    onLog: (entry: LogEntry) => void,
+    onError?: (error: Event) => void
+  ): EventSource => {
+    const baseUrl = getApiBaseUrl();
+    const url = `${baseUrl}/api/v1/system/logs/stream`;
+
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const entry = JSON.parse(event.data) as LogEntry;
+        onLog(entry);
+      } catch (e) {
+        console.warn('[SSE] Failed to parse log entry:', e);
+      }
+    };
+
+    eventSource.onerror = (event) => {
+      console.error('[SSE] Log stream error:', event);
+      onError?.(event);
+    };
+
+    return eventSource;
   },
 
   /**

@@ -1,0 +1,357 @@
+openapi: 3.1.0
+info:
+  title: PiOrchestrator V1 Cameras API
+  description: ESP Camera management endpoints for PiDashboard integration
+  version: 1.0.0
+  contact:
+    name: DeliCasa Team
+
+servers:
+  - url: /api/v1
+    description: PiOrchestrator backend (same origin)
+
+paths:
+  /cameras:
+    get:
+      operationId: listCameras
+      summary: List all registered cameras
+      description: Returns all cameras with their current status and health metrics
+      tags:
+        - Cameras
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cameras/{id}:
+    get:
+      operationId: getCamera
+      summary: Get camera by ID
+      description: Returns detailed information for a specific camera
+      tags:
+        - Cameras
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Camera ID (MAC address or UUID)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '404':
+          description: Camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cameras/diagnostics:
+    get:
+      operationId: getDiagnostics
+      summary: Get diagnostics for all cameras
+      description: Returns extended diagnostic information for debugging
+      tags:
+        - Cameras
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CameraDiagnostics'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cameras/{id}/capture:
+    post:
+      operationId: captureImage
+      summary: Capture image from camera
+      description: Triggers a still image capture from the specified camera
+      tags:
+        - Cameras
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Camera ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Capture successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureResult'
+        '404':
+          description: Camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: Capture timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Camera offline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cameras/{id}/reboot:
+    post:
+      operationId: rebootCamera
+      summary: Reboot camera
+      description: Sends reboot command to the specified camera
+      tags:
+        - Cameras
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Camera ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reboot command sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RebootResult'
+        '404':
+          description: Camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Camera offline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CameraStatus:
+      type: string
+      enum:
+        - online
+        - offline
+        - error
+        - rebooting
+
+    CameraResolution:
+      type: string
+      enum:
+        - QQVGA
+        - QVGA
+        - VGA
+        - SVGA
+        - XGA
+        - SXGA
+        - UXGA
+
+    CameraHealth:
+      type: object
+      required:
+        - wifi_rssi
+        - free_heap
+        - uptime
+        - resolution
+      properties:
+        wifi_rssi:
+          type: integer
+          description: WiFi signal strength in dBm
+          example: -65
+        free_heap:
+          type: integer
+          description: Available heap memory in bytes
+          example: 45000
+        uptime:
+          type: string
+          description: Human-readable uptime
+          example: "2d 5h 30m"
+        uptime_seconds:
+          type: integer
+          description: Uptime in seconds
+        resolution:
+          $ref: '#/components/schemas/CameraResolution'
+        firmware_version:
+          type: string
+          example: "1.2.3"
+        last_capture:
+          type: string
+          format: date-time
+          description: Timestamp of last successful capture
+
+    Camera:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - lastSeen
+      properties:
+        id:
+          type: string
+          description: Unique camera identifier
+          example: "AA:BB:CC:DD:EE:FF"
+        name:
+          type: string
+          description: User-friendly camera name
+          maxLength: 64
+          example: "Front Door Camera"
+        status:
+          $ref: '#/components/schemas/CameraStatus'
+        lastSeen:
+          type: string
+          format: date-time
+          description: Last successful communication timestamp
+        health:
+          $ref: '#/components/schemas/CameraHealth'
+        ip_address:
+          type: string
+          format: ipv4
+          example: "192.168.1.100"
+        mac_address:
+          type: string
+          example: "AA:BB:CC:DD:EE:FF"
+
+    ConnectionQuality:
+      type: string
+      enum:
+        - excellent
+        - good
+        - fair
+        - poor
+
+    DiagnosticsInfo:
+      type: object
+      required:
+        - connection_quality
+        - error_count
+      properties:
+        connection_quality:
+          $ref: '#/components/schemas/ConnectionQuality'
+        error_count:
+          type: integer
+          minimum: 0
+        last_error:
+          type: string
+
+    CameraDiagnostics:
+      allOf:
+        - $ref: '#/components/schemas/Camera'
+        - type: object
+          properties:
+            diagnostics:
+              $ref: '#/components/schemas/DiagnosticsInfo'
+
+    CameraListResponse:
+      type: object
+      required:
+        - cameras
+        - count
+      properties:
+        cameras:
+          type: array
+          items:
+            $ref: '#/components/schemas/Camera'
+        count:
+          type: integer
+          minimum: 0
+
+    CaptureResult:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        image:
+          type: string
+          format: byte
+          description: Base64-encoded JPEG image
+        timestamp:
+          type: string
+          format: date-time
+        camera_id:
+          type: string
+        file_size:
+          type: integer
+          description: Image size in bytes
+        error:
+          type: string
+          description: Error message if capture failed
+
+    RebootResult:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+          enum:
+            - CAMERA_OFFLINE
+            - CAMERA_NOT_FOUND
+            - CAPTURE_FAILED
+            - CAPTURE_TIMEOUT
+            - REBOOT_FAILED
+            - NETWORK_ERROR
+            - INTERNAL_ERROR
+        retryable:
+          type: boolean
+          description: Whether the operation can be retried
+        retry_after_seconds:
+          type: integer
+          description: Recommended wait time before retry

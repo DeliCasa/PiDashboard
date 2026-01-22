@@ -85,15 +85,18 @@ export interface Device {
 
 /**
  * Camera health metrics (embedded in Camera)
+ * Note: All fields optional - backend may return partial data
  */
 export interface CameraHealth {
-  wifi_rssi: number;
-  free_heap: number;
-  uptime: string;
+  wifi_rssi?: number;
+  free_heap?: number;
+  heap?: number; // Alternative name for free_heap from some backends
+  uptime?: string | number;
   uptime_seconds?: number;
-  resolution: CameraResolution;
+  resolution?: CameraResolution;
   firmware_version?: string;
   last_capture?: string;
+  last_error?: string;
 }
 
 /**

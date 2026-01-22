@@ -1,11 +1,103 @@
 /**
  * V1 API Error Handling
  * Feature: 006-piorchestrator-v1-api-sync
+ * Enhanced: 030-dashboard-recovery (HTMLFallbackError, createDebugInfo)
  *
  * Error code registry with user-friendly message mappings and V1 API error class.
  */
 
 import type { ErrorCode, V1Error } from '@/domain/types/v1-api';
+
+// ============================================================================
+// HTML Fallback Error (030-dashboard-recovery)
+// ============================================================================
+
+/**
+ * Error thrown when API returns HTML instead of JSON.
+ * This typically indicates the request hit the SPA fallback route
+ * instead of a registered API endpoint.
+ */
+export class HTMLFallbackError extends Error {
+  readonly name = 'HTMLFallbackError';
+  readonly hint = 'API route hitting SPA fallback - endpoint may not be registered';
+
+  constructor(
+    /** The endpoint that returned HTML */
+    public readonly endpoint: string,
+    /** Expected content type (application/json) */
+    public readonly expectedContentType: string = 'application/json',
+    /** Actual content type received */
+    public readonly actualContentType: string,
+    /** Timestamp when the error occurred */
+    public readonly timestamp: Date = new Date()
+  ) {
+    super(`Expected JSON but received HTML from ${endpoint}`);
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, HTMLFallbackError);
+    }
+  }
+
+  /**
+   * Type guard to check if an error is an HTMLFallbackError.
+   */
+  static isHTMLFallbackError(error: unknown): error is HTMLFallbackError {
+    return error instanceof HTMLFallbackError;
+  }
+
+  /**
+   * Get user-friendly message for display.
+   */
+  get userMessage(): string {
+    return `The API endpoint "${this.endpoint}" returned an HTML page instead of data. This may indicate the endpoint is not properly registered on the server.`;
+  }
+}
+
+// ============================================================================
+// Debug Info Helper (030-dashboard-recovery)
+// ============================================================================
+
+/**
+ * Debug information for error reporting and support.
+ */
+export interface DebugInfo {
+  endpoint: string;
+  status?: number;
+  code?: string;
+  requestId?: string;
+  timestamp: string;
+  userAgent: string;
+  origin: string;
+}
+
+/**
+ * Creates a debug info object suitable for copying to clipboard.
+ * Sanitizes sensitive data (no PII).
+ */
+export function createDebugInfo(params: {
+  endpoint: string;
+  status?: number;
+  code?: string;
+  requestId?: string;
+  timestamp?: Date;
+}): DebugInfo {
+  return {
+    endpoint: params.endpoint,
+    status: params.status,
+    code: params.code,
+    requestId: params.requestId,
+    timestamp: (params.timestamp ?? new Date()).toISOString(),
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+    origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
+  };
+}
+
+/**
+ * Formats debug info as a JSON string for clipboard copying.
+ */
+export function formatDebugInfoForClipboard(debugInfo: DebugInfo): string {
+  return JSON.stringify(debugInfo, null, 2);
+}
 
 // ============================================================================
 // Error Message Registry
@@ -53,6 +145,13 @@ export const ERROR_MESSAGES: Record<ErrorCode | string, string> = {
   VALIDATION_FAILED: 'Invalid input. Please check your data and try again.',
   INVALID_REQUEST: 'The request was invalid. Please check your input.',
   MISSING_PARAMETER: 'A required parameter was missing from the request.',
+
+  // Camera Errors (034-esp-camera-integration)
+  CAMERA_OFFLINE: 'Camera is offline. Check that it is powered on and connected to WiFi.',
+  CAMERA_NOT_FOUND: 'Camera not found. It may have been removed or the ID is incorrect.',
+  CAPTURE_FAILED: 'Failed to capture image. The camera may be busy or experiencing issues.',
+  CAPTURE_TIMEOUT: 'Capture timed out. The camera may be slow to respond or disconnected.',
+  REBOOT_FAILED: 'Failed to reboot camera. Try again or check the camera status.',
 };
 
 /**
@@ -168,6 +267,20 @@ export class V1ApiError extends Error {
   }
 
   /**
+   * Check if the error is a camera error.
+   * Feature: 034-esp-camera-integration
+   */
+  isCameraError(): boolean {
+    return (
+      this.code === 'CAMERA_OFFLINE' ||
+      this.code === 'CAMERA_NOT_FOUND' ||
+      this.code === 'CAPTURE_FAILED' ||
+      this.code === 'CAPTURE_TIMEOUT' ||
+      this.code === 'REBOOT_FAILED'
+    );
+  }
+
+  /**
    * Convert to a plain object for logging (without exposing sensitive data).
    */
   toLogObject(): Record<string, unknown> {
@@ -189,7 +302,7 @@ export class V1ApiError extends Error {
 /**
  * Error category for UI styling and handling.
  */
-export type ErrorCategory = 'auth' | 'session' | 'device' | 'network' | 'validation' | 'infrastructure' | 'unknown';
+export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'network' | 'validation' | 'infrastructure' | 'unknown';
 
 /**
  * Get the category of an error code for UI handling.
@@ -233,6 +346,17 @@ export function getErrorCategory(code: ErrorCode | string): ErrorCategory {
 
   if (code === 'MQTT_UNAVAILABLE' || code === 'DATABASE_ERROR' || code === 'INTERNAL_ERROR') {
     return 'infrastructure';
+  }
+
+  // Camera errors (034-esp-camera-integration)
+  if (
+    code === 'CAMERA_OFFLINE' ||
+    code === 'CAMERA_NOT_FOUND' ||
+    code === 'CAPTURE_FAILED' ||
+    code === 'CAPTURE_TIMEOUT' ||
+    code === 'REBOOT_FAILED'
+  ) {
+    return 'camera';
   }
 
   return 'unknown';

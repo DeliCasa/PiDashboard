@@ -133,7 +133,8 @@ export async function clearOldSessions(
 export async function hasRecoverableSessions(): Promise<boolean> {
   try {
     const result = await getRecoverableSessions();
-    return result.data.sessions.length > 0;
+    // Defensive: handle null/undefined from API (HANDOFF_028)
+    return (result.data.sessions ?? []).length > 0;
   } catch {
     return false;
   }
@@ -147,11 +148,13 @@ export async function hasRecoverableSessions(): Promise<boolean> {
 export async function getMostRecentRecoverable(): Promise<BatchProvisioningSession | null> {
   try {
     const result = await getRecoverableSessions();
-    if (result.data.sessions.length === 0) {
+    // Defensive: handle null/undefined from API (HANDOFF_028)
+    const sessions = result.data.sessions ?? [];
+    if (sessions.length === 0) {
       return null;
     }
     // Sort by updated_at descending and return the first
-    const sorted = [...result.data.sessions].sort(
+    const sorted = [...sessions].sort(
       (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
     return sorted[0];

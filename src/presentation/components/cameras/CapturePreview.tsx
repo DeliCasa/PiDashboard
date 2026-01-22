@@ -110,6 +110,7 @@ export function CapturePreview({
               variant="secondary"
               className="h-8 w-8 p-0 opacity-80 hover:opacity-100"
               onClick={() => setIsFullscreen(true)}
+              aria-label="View fullscreen"
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -118,6 +119,7 @@ export function CapturePreview({
               variant="secondary"
               className="h-8 w-8 p-0 opacity-80 hover:opacity-100"
               onClick={handleDownload}
+              aria-label="Download capture"
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -127,6 +129,7 @@ export function CapturePreview({
                 variant="secondary"
                 className="h-8 w-8 p-0 opacity-80 hover:opacity-100"
                 onClick={onClose}
+                aria-label="Close preview"
               >
                 <X className="h-4 w-4" />
               </Button>

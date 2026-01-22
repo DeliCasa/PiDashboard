@@ -327,10 +327,10 @@ tests/
 
 | Category | Tests | Description |
 |----------|-------|-------------|
-| Unit | 140+ | API clients, BLE provisioning, utilities |
-| Component | 140+ | UI components with data-testid selectors |
+| Unit | 170+ | API clients (V1 cameras), BLE provisioning, utilities |
+| Component | 200+ | UI components with data-testid selectors (incl. cameras: 114 tests) |
 | Integration | 90+ | Hook tests, contract tests, offline queue |
-| E2E | 100+ | Smoke, accessibility, resilience tests |
+| E2E | 130+ | Smoke, accessibility, resilience, camera flows |
 
 ### CI/CD Workflows
 
@@ -379,6 +379,48 @@ npm run test:e2e
 npx playwright test tests/e2e/accessibility.spec.ts --project=chromium
 ```
 
+## Handoff Sentinel
+
+Cross-repo handoff detection and generation for PiDashboard ⇄ PiOrchestrator workflow.
+
+### Handoff Commands
+
+```bash
+npm run handoff:detect    # Check for pending handoffs (runs on dev/test)
+npm run handoff:list      # List all handoffs with details
+npm run handoff:generate  # Generate a new outgoing handoff (interactive)
+```
+
+### CI Flags
+
+```bash
+npm run handoff:detect -- --quiet   # Suppress output on success
+npm run handoff:detect -- --strict  # Exit 1 if pending handoffs exist
+npm run handoff:detect -- --json    # Machine-readable JSON output
+```
+
+### Handoff Locations
+
+Detection scans these paths:
+- `docs/HANDOFF_*.md`
+- `docs/handoffs/**/*.md`
+- `specs/**/HANDOFF*.md`
+- `specs/**/handoff*.md`
+
+### Handoff Status Lifecycle
+
+| Status | Meaning | Detection Behavior |
+|--------|---------|-------------------|
+| `new` | Just created | Shows warning |
+| `acknowledged` | Seen, not started | Silent |
+| `in_progress` | Being worked on | Shows info |
+| `done` | Complete | Silent |
+| `blocked` | External blocker | Shows warning |
+
+### Claude Code Skill
+
+Use `/handoff-generate` to interactively create outgoing handoffs with Claude assistance.
+
 ## Important Notes
 
 - Always test changes locally before deploying to Pi
@@ -390,6 +432,25 @@ npx playwright test tests/e2e/accessibility.spec.ts --project=chromium
 ## Active Technologies
 - TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI (001-api-compat-integration)
 - N/A (API proxied to PiOrchestrator Go backend) (001-api-compat-integration)
+- TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (030-dashboard-recovery)
+- TypeScript ~5.9.3, Node.js (via npm scripts) + gray-matter (YAML frontmatter), glob (file patterns), chalk (terminal colors) (032-handoff-sentinel)
+- JSON file for detection state (`.handoff-state.json`), Markdown files for handoffs (032-handoff-sentinel)
+- TypeScript ~5.9.3, Node.js (via npm scripts) + gray-matter (YAML frontmatter), chalk (terminal), Feature 032 Handoff Sentinel infrastructure (033-handoff-consumption)
+- Markdown files (consumption plans, reports), JSON state files (033-handoff-consumption)
+- TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, Document Visibility API (034-esp-camera-integration)
+- V1 Cameras API (`/api/v1/cameras/*`), Base64 JPEG encoding, AlertDialog/Collapsible UI patterns (034-esp-camera-integration)
+
+## Recent Changes
+- 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
+- 034-esp-camera-integration: Migrated camera management to V1 Cameras API with:
+  - Camera list with visibility-aware polling (pauses when tab hidden)
+  - Base64 image capture with preview and download
+  - Camera detail modal with health metrics
+  - Reboot with confirmation dialog and toast feedback
+  - Diagnostics view with JSON display, search filter, and copy functionality
+  - 136+ component/API tests, E2E test coverage
+- TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (034-esp-camera-integration)
+- N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI

@@ -1,0 +1,137 @@
+/**
+ * V1 Cameras API Zod Schemas
+ * Feature: 034-esp-camera-integration
+ *
+ * Runtime validation schemas for ESP camera API responses.
+ * Based on OpenAPI spec: specs/034-esp-camera-integration/contracts/v1-cameras-api.yaml
+ */
+
+import { z } from 'zod';
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+export const CameraStatusSchema = z.enum(['online', 'offline', 'error', 'rebooting']);
+export type CameraStatus = z.infer<typeof CameraStatusSchema>;
+
+export const CameraResolutionSchema = z.enum([
+  'QQVGA',
+  'QVGA',
+  'VGA',
+  'SVGA',
+  'XGA',
+  'SXGA',
+  'UXGA',
+]);
+export type CameraResolution = z.infer<typeof CameraResolutionSchema>;
+
+export const ConnectionQualitySchema = z.enum(['excellent', 'good', 'fair', 'poor']);
+export type ConnectionQuality = z.infer<typeof ConnectionQualitySchema>;
+
+// ============================================================================
+// Camera Health
+// ============================================================================
+
+// Flexible health schema that accepts various backend formats
+export const CameraHealthSchema = z.object({
+  // Core metrics (may use different names)
+  wifi_rssi: z.number().optional(),
+  free_heap: z.number().nonnegative().optional(),
+  heap: z.number().nonnegative().optional(), // Alternative name for free_heap
+  uptime: z.union([z.string(), z.number()]).optional(),
+  uptime_seconds: z.number().nonnegative().optional(),
+  resolution: CameraResolutionSchema.optional(),
+  firmware_version: z.string().optional(),
+  last_capture: z.string().optional(),
+  last_error: z.string().optional(),
+});
+export type CameraHealth = z.infer<typeof CameraHealthSchema>;
+
+// ============================================================================
+// Camera Entity
+// ============================================================================
+
+export const CameraSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(), // Allow any name (backend may return device_id as name)
+  status: CameraStatusSchema,
+  lastSeen: z.string(), // Accept any string format (ISO datetime or other)
+  health: CameraHealthSchema.optional(),
+  ip_address: z.string().optional(),
+  mac_address: z.string().optional(),
+});
+export type Camera = z.infer<typeof CameraSchema>;
+
+// ============================================================================
+// Diagnostics
+// ============================================================================
+
+export const DiagnosticsInfoSchema = z.object({
+  connection_quality: ConnectionQualitySchema,
+  error_count: z.number().nonnegative(),
+  last_error: z.string().optional(),
+});
+export type DiagnosticsInfo = z.infer<typeof DiagnosticsInfoSchema>;
+
+export const CameraDiagnosticsSchema = CameraSchema.extend({
+  diagnostics: DiagnosticsInfoSchema.optional(),
+});
+export type CameraDiagnostics = z.infer<typeof CameraDiagnosticsSchema>;
+
+// ============================================================================
+// Operation Results
+// ============================================================================
+
+export const CaptureResultSchema = z.object({
+  success: z.boolean(),
+  image: z.string().optional(),
+  timestamp: z.string().datetime().optional(),
+  camera_id: z.string().optional(),
+  file_size: z.number().nonnegative().optional(),
+  error: z.string().optional(),
+});
+export type CaptureResult = z.infer<typeof CaptureResultSchema>;
+
+export const RebootResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+});
+export type RebootResult = z.infer<typeof RebootResultSchema>;
+
+// ============================================================================
+// Response Envelopes
+// ============================================================================
+
+export const CameraListResponseSchema = z.object({
+  cameras: z.array(CameraSchema),
+  count: z.number().nonnegative(),
+});
+export type CameraListResponse = z.infer<typeof CameraListResponseSchema>;
+
+export const DiagnosticsListResponseSchema = z.array(CameraDiagnosticsSchema);
+export type DiagnosticsListResponse = z.infer<typeof DiagnosticsListResponseSchema>;
+
+// ============================================================================
+// Error Response
+// ============================================================================
+
+export const CameraErrorCodeSchema = z.enum([
+  'CAMERA_OFFLINE',
+  'CAMERA_NOT_FOUND',
+  'CAPTURE_FAILED',
+  'CAPTURE_TIMEOUT',
+  'REBOOT_FAILED',
+  'NETWORK_ERROR',
+  'INTERNAL_ERROR',
+]);
+export type CameraErrorCode = z.infer<typeof CameraErrorCodeSchema>;
+
+export const CameraErrorResponseSchema = z.object({
+  error: z.string(),
+  code: CameraErrorCodeSchema,
+  retryable: z.boolean().optional(),
+  retry_after_seconds: z.number().optional(),
+});
+export type CameraErrorResponse = z.infer<typeof CameraErrorResponseSchema>;

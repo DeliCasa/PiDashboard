@@ -1,10 +1,15 @@
 /**
  * CameraSection Component
  * Complete camera management section
+ *
+ * Feature: 034-esp-camera-integration
+ * - Updated to use V1 Cameras API with base64 image capture
+ * - Added visibility-aware polling
+ * - Enhanced error states with retry functionality
  */
 
 import { useState } from 'react';
-import { Camera, RefreshCw } from 'lucide-react';
+import { Camera, RefreshCw, AlertCircle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -26,8 +31,13 @@ import {
 } from '@/application/hooks/useCameras';
 import { CameraCard } from './CameraCard';
 import { CapturePreview } from './CapturePreview';
+import { CameraDetail } from './CameraDetail';
+import { RebootDialog } from './RebootDialog';
+import { DiagnosticsView } from './DiagnosticsView';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { V1ApiError, getUserMessage } from '@/infrastructure/api/errors';
+import { createDataUrl } from '@/lib/download';
 
 interface CameraSectionProps {
   className?: string;
@@ -35,6 +45,7 @@ interface CameraSectionProps {
 
 interface CaptureState {
   cameraId: string;
+  /** Data URL for base64 image (data:image/jpeg;base64,...) */
   imageUrl: string;
   timestamp: string;
 }
@@ -43,9 +54,12 @@ export function CameraSection({ className }: CameraSectionProps) {
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
   const [capturingId, setCapturingId] = useState<string | null>(null);
   const [rebootingId, setRebootingId] = useState<string | null>(null);
+  const [detailCameraId, setDetailCameraId] = useState<string | null>(null);
+  /** Camera ID pending reboot confirmation */
+  const [rebootConfirmId, setRebootConfirmId] = useState<string | null>(null);
 
-  // Hooks
-  const { data: cameras = [], isLoading, refetch } = useCameras();
+  // Hooks - useCameras now uses V1 API with visibility-aware polling
+  const { data: cameras = [], isLoading, isError, error, refetch } = useCameras();
   const captureMutation = useCaptureTest();
   const rebootMutation = useRebootCamera();
 
@@ -53,10 +67,12 @@ export function CameraSection({ className }: CameraSectionProps) {
     setCapturingId(cameraId);
     try {
       const result = await captureMutation.mutateAsync(cameraId);
-      if (result.success && result.image_url) {
+      if (result.success && result.image) {
+        // V1 API returns base64 image - convert to data URL
+        const imageUrl = createDataUrl(result.image, 'image/jpeg');
         setCaptureState({
           cameraId,
-          imageUrl: result.image_url,
+          imageUrl,
           timestamp: result.timestamp || new Date().toISOString(),
         });
         toast.success('Capture successful');
@@ -65,27 +81,61 @@ export function CameraSection({ className }: CameraSectionProps) {
           description: result.error || 'Unknown error',
         });
       }
-    } catch (error) {
-      toast.error('Capture failed', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+    } catch (err) {
+      // Handle V1ApiError for user-friendly messages
+      const message = V1ApiError.isV1ApiError(err)
+        ? getUserMessage(err.code)
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
+      toast.error('Capture failed', { description: message });
     } finally {
       setCapturingId(null);
     }
   };
 
-  const handleReboot = async (cameraId: string) => {
+  /** Opens the reboot confirmation dialog */
+  const handleRebootClick = (cameraId: string) => {
+    setRebootConfirmId(cameraId);
+  };
+
+  /** Actually performs the reboot after confirmation */
+  const handleRebootConfirm = async () => {
+    if (!rebootConfirmId) return;
+
+    const cameraId = rebootConfirmId;
     setRebootingId(cameraId);
+    // Keep dialog open while rebooting to show loading state
+
     try {
       await rebootMutation.mutateAsync(cameraId);
-      toast.success('Reboot command sent');
-    } catch (error) {
-      toast.error('Reboot failed', {
-        description: error instanceof Error ? error.message : 'Unknown error',
+      toast.success('Reboot command sent', {
+        description: 'Camera will be temporarily unavailable during reboot.',
       });
+      setRebootConfirmId(null);
+    } catch (err) {
+      // Handle V1ApiError for user-friendly messages
+      const message = V1ApiError.isV1ApiError(err)
+        ? getUserMessage(err.code)
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
+      toast.error('Reboot failed', { description: message });
+      setRebootConfirmId(null);
     } finally {
       setRebootingId(null);
     }
+  };
+
+  // Get user-friendly error message for display (T016)
+  const getErrorMessage = (): string => {
+    if (V1ApiError.isV1ApiError(error)) {
+      return getUserMessage(error.code);
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Failed to load cameras. Please try again.';
   };
 
   const onlineCount = cameras.filter((c) => c.status === 'online').length;
@@ -117,29 +167,53 @@ export function CameraSection({ className }: CameraSectionProps) {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="py-8 text-center text-muted-foreground">
+          // Loading state (T014)
+          <div className="py-8 text-center text-muted-foreground" data-testid="camera-loading">
             <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <p className="mt-2 text-sm">Loading cameras...</p>
           </div>
+        ) : isError ? (
+          // Error state with retry button (T016)
+          <div className="py-8 text-center" data-testid="camera-error">
+            <AlertCircle className="mx-auto h-8 w-8 text-destructive opacity-70" />
+            <p className="mt-2 text-sm text-destructive">{getErrorMessage()}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => refetch()}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </div>
         ) : cameras.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground">
+          // Empty state (T015)
+          <div className="py-8 text-center text-muted-foreground" data-testid="camera-empty">
             <Camera className="mx-auto h-8 w-8 opacity-50" />
-            <p className="mt-2 text-sm">No cameras registered</p>
-            <p className="text-xs">Cameras will appear here once connected</p>
+            <p className="mt-2 text-sm">No cameras connected</p>
+            <p className="text-xs">Cameras will appear here once registered with PiOrchestrator</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          // Camera grid
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="camera-grid">
             {cameras.map((camera) => (
               <CameraCard
                 key={camera.id}
                 camera={camera}
                 onCapture={() => handleCapture(camera.id)}
-                onReboot={() => handleReboot(camera.id)}
+                onReboot={() => handleRebootClick(camera.id)}
+                onViewDetails={() => setDetailCameraId(camera.id)}
                 isCapturing={capturingId === camera.id}
                 isRebooting={rebootingId === camera.id}
               />
             ))}
           </div>
+        )}
+
+        {/* Diagnostics Section (T059) - Always visible as collapsible */}
+        {!isLoading && !isError && (
+          <DiagnosticsView className="mt-6" />
         )}
       </CardContent>
 
@@ -161,6 +235,23 @@ export function CameraSection({ className }: CameraSectionProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Camera Detail Dialog */}
+      <CameraDetail
+        cameraId={detailCameraId}
+        open={detailCameraId !== null}
+        onOpenChange={(open) => !open && setDetailCameraId(null)}
+        onViewList={() => setDetailCameraId(null)}
+      />
+
+      {/* Reboot Confirmation Dialog (T043, T047) */}
+      <RebootDialog
+        cameraName={cameras.find((c) => c.id === rebootConfirmId)?.name || 'Camera'}
+        open={rebootConfirmId !== null}
+        onOpenChange={(open) => !open && !rebootingId && setRebootConfirmId(null)}
+        onConfirm={handleRebootConfirm}
+        isRebooting={rebootingId === rebootConfirmId}
+      />
     </Card>
   );
 }

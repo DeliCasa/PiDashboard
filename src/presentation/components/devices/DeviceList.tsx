@@ -1,20 +1,33 @@
 /**
  * DeviceList Component
  * Displays discovered BLE devices with status badges
+ * Enhanced: 030-dashboard-recovery (explicit state handling)
  */
 
-import { Bluetooth, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Bluetooth, Check, AlertCircle, Loader2, RefreshCw, Radio } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Device, DeviceStatus } from '@/domain/types/entities';
+import type { DeviceListState } from '@/domain/types/ui';
+import { ErrorDisplay } from '@/presentation/components/common/ErrorDisplay';
 
 interface DeviceListProps {
   devices: Device[];
   selectedAddresses: string[];
   onSelectionChange: (addresses: string[]) => void;
   onProvision: (address: string) => void;
+  /** Current state of the device list (030-dashboard-recovery) */
+  state?: DeviceListState;
+  /** Error object if state is 'error' (030-dashboard-recovery) */
+  error?: Error | null;
+  /** Callback for retry on error (030-dashboard-recovery) */
+  onRetry?: () => void;
+  /** Callback for scanning devices (030-dashboard-recovery) */
+  onScan?: () => void;
+  /** Whether a scan is in progress (030-dashboard-recovery) */
+  isScanning?: boolean;
   className?: string;
 }
 
@@ -61,6 +74,11 @@ export function DeviceList({
   selectedAddresses,
   onSelectionChange,
   onProvision,
+  state,
+  error,
+  onRetry,
+  onScan,
+  isScanning,
   className,
 }: DeviceListProps) {
   const toggleSelection = (address: string) => {
@@ -82,12 +100,48 @@ export function DeviceList({
     onSelectionChange([]);
   };
 
-  if (devices.length === 0) {
+  // 030-dashboard-recovery: Explicit loading state
+  if (state === 'loading') {
     return (
-      <div className={cn('py-8 text-center text-muted-foreground', className)}>
-        <Bluetooth className="mx-auto h-8 w-8 opacity-50" />
-        <p className="mt-2 text-sm">No devices found</p>
-        <p className="text-xs">Start a scan to discover nearby ESP32 devices</p>
+      <div className={cn('py-8 text-center text-muted-foreground', className)} data-testid="device-list-loading">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+        <p className="mt-2 text-sm">Loading devices...</p>
+      </div>
+    );
+  }
+
+  // 030-dashboard-recovery: Explicit error state with retry
+  if (state === 'error' && error) {
+    return (
+      <div className={cn('py-4', className)} data-testid="device-list-error">
+        <ErrorDisplay
+          error={error}
+          title="Failed to Load Devices"
+          onRetry={onRetry}
+        />
+      </div>
+    );
+  }
+
+  // 030-dashboard-recovery: Explicit empty state with scan CTA
+  if (state === 'empty' || devices.length === 0) {
+    return (
+      <div className={cn('py-8 text-center text-muted-foreground', className)} data-testid="device-list-empty">
+        <Radio className="mx-auto h-8 w-8 opacity-50" />
+        <p className="mt-2 text-sm font-medium">No devices found</p>
+        <p className="text-xs mb-4">Start a scan to discover nearby ESP32 devices</p>
+        {onScan && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onScan}
+            disabled={isScanning}
+            data-testid="device-list-scan-button"
+          >
+            <RefreshCw className={cn('mr-2 h-4 w-4', isScanning && 'animate-spin')} />
+            {isScanning ? 'Scanning...' : 'Scan for Devices'}
+          </Button>
+        )}
       </div>
     );
   }

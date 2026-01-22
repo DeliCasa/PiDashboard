@@ -27,6 +27,8 @@ import { NetworkSection } from "@/presentation/components/network/NetworkSection
 import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndicator";
 import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
+// 030-dashboard-recovery: Error boundary to catch uncaught exceptions
+import { ErrorBoundary } from "@/presentation/components/common/ErrorBoundary";
 
 function Dashboard() {
   const isBatchProvisioningEnabled = useBatchProvisioningEnabled();
@@ -102,63 +104,83 @@ function Dashboard() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
+          {/* Overview Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SystemStatus />
-              <WiFiSection />
-            </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <CameraSection />
-              <DoorSection />
-            </div>
+            <ErrorBoundary>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <SystemStatus />
+                <WiFiSection />
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <CameraSection />
+                <DoorSection />
+              </div>
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* System Tab */}
+          {/* System Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="system">
-            <SystemStatus />
+            <ErrorBoundary>
+              <SystemStatus />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* WiFi Tab */}
+          {/* WiFi Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="wifi">
-            <WiFiSection />
+            <ErrorBoundary>
+              <WiFiSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Devices Tab */}
+          {/* Devices Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="devices">
-            <DeviceSection />
+            <ErrorBoundary>
+              <DeviceSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Provisioning Tab */}
+          {/* Provisioning Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           {isBatchProvisioningEnabled && (
             <TabsContent value="provisioning">
-              <BatchProvisioningSection />
+              <ErrorBoundary>
+                <BatchProvisioningSection />
+              </ErrorBoundary>
             </TabsContent>
           )}
 
-          {/* Cameras Tab */}
+          {/* Cameras Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="cameras">
-            <CameraSection />
+            <ErrorBoundary>
+              <CameraSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Door Tab */}
+          {/* Door Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="door">
-            <DoorSection />
+            <ErrorBoundary>
+              <DoorSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Logs Tab */}
+          {/* Logs Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="logs">
-            <LogSection />
+            <ErrorBoundary>
+              <LogSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Network Tab */}
+          {/* Network Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="network">
-            <NetworkSection />
+            <ErrorBoundary>
+              <NetworkSection />
+            </ErrorBoundary>
           </TabsContent>
 
-          {/* Config Tab */}
+          {/* Config Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
           <TabsContent value="config">
-            <ConfigSection />
+            <ErrorBoundary>
+              <ConfigSection />
+            </ErrorBoundary>
           </TabsContent>
         </Tabs>
       </main>

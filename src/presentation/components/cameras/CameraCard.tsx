@@ -3,7 +3,7 @@
  * Individual camera status card with health metrics
  */
 
-import { Camera as CameraIcon, Wifi, RefreshCw, Power, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Camera as CameraIcon, Wifi, RefreshCw, Power, Clock, CheckCircle, XCircle, AlertCircle, Eye } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -13,6 +13,11 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { Camera, CameraStatus } from '@/domain/types/entities';
 
@@ -20,6 +25,7 @@ interface CameraCardProps {
   camera: Camera;
   onCapture?: () => void;
   onReboot?: () => void;
+  onViewDetails?: () => void;
   isCapturing?: boolean;
   isRebooting?: boolean;
   className?: string;
@@ -53,6 +59,7 @@ export function CameraCard({
   camera,
   onCapture,
   onReboot,
+  onViewDetails,
   isCapturing,
   isRebooting,
   className,
@@ -98,33 +105,41 @@ export function CameraCard({
         {camera.health && isOnline && (
           <div className="grid grid-cols-2 gap-3 text-sm">
             {/* WiFi Signal */}
-            <div className="flex items-center gap-2">
-              <Wifi className={cn(
-                'h-4 w-4',
-                camera.health.wifi_rssi > -50 && 'text-green-500',
-                camera.health.wifi_rssi <= -50 && camera.health.wifi_rssi > -70 && 'text-yellow-500',
-                camera.health.wifi_rssi <= -70 && 'text-red-500'
-              )} />
-              <span>{camera.health.wifi_rssi} dBm</span>
-            </div>
+            {camera.health.wifi_rssi != null && (
+              <div className="flex items-center gap-2">
+                <Wifi className={cn(
+                  'h-4 w-4',
+                  camera.health.wifi_rssi > -50 && 'text-green-500',
+                  camera.health.wifi_rssi <= -50 && camera.health.wifi_rssi > -70 && 'text-yellow-500',
+                  camera.health.wifi_rssi <= -70 && 'text-red-500'
+                )} />
+                <span>{camera.health.wifi_rssi} dBm</span>
+              </div>
+            )}
 
             {/* Free Heap */}
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="text-xs">Heap:</span>
-              <span>{formatBytes(camera.health.free_heap)}</span>
-            </div>
+            {(typeof camera.health.free_heap === 'number' || typeof camera.health.heap === 'number') && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-xs">Heap:</span>
+                <span>{formatBytes(camera.health.free_heap ?? camera.health.heap ?? 0)}</span>
+              </div>
+            )}
 
             {/* Resolution */}
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="text-xs">Res:</span>
-              <span>{camera.health.resolution}</span>
-            </div>
+            {camera.health.resolution && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-xs">Res:</span>
+                <span>{camera.health.resolution}</span>
+              </div>
+            )}
 
             {/* Uptime */}
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span>{formatUptime(camera.health.uptime_seconds)}</span>
-            </div>
+            {(typeof camera.health.uptime_seconds === 'number' || typeof camera.health.uptime === 'number') && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span>{formatUptime(camera.health.uptime_seconds ?? (typeof camera.health.uptime === 'number' ? camera.health.uptime : undefined))}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -136,25 +151,66 @@ export function CameraCard({
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onCapture}
-            disabled={!isOnline || isCapturing}
-            className="flex-1"
-          >
-            <CameraIcon className={cn('mr-2 h-4 w-4', isCapturing && 'animate-pulse')} />
-            {isCapturing ? 'Capturing...' : 'Test Capture'}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onReboot}
-            disabled={!isOnline || isRebooting}
-          >
-            <Power className={cn('h-4 w-4', isRebooting && 'animate-spin')} />
-          </Button>
+        <div className="flex gap-2" data-testid="camera-card">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onCapture}
+                  disabled={!isOnline || isCapturing}
+                  className="w-full"
+                  aria-label={!isOnline ? 'Capture unavailable - camera offline' : 'Test Capture'}
+                >
+                  <CameraIcon className={cn('mr-2 h-4 w-4', isCapturing && 'animate-pulse')} />
+                  {isCapturing ? 'Capturing...' : 'Test Capture'}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!isOnline && (
+              <TooltipContent>
+                Camera must be online to capture images
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onReboot}
+                  disabled={!isOnline || isRebooting}
+                  aria-label={!isOnline ? 'Reboot unavailable - camera offline' : 'Reboot camera'}
+                >
+                  <Power className={cn('h-4 w-4', isRebooting && 'animate-spin')} />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!isOnline && (
+              <TooltipContent>
+                Camera must be online to reboot
+              </TooltipContent>
+            )}
+          </Tooltip>
+          {onViewDetails && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onViewDetails}
+                  aria-label="View camera details"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                View camera details
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </CardContent>
     </Card>

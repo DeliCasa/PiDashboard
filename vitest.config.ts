@@ -13,6 +13,7 @@ export default defineConfig({
       'tests/component/**/*.test.tsx',
       'tests/integration/**/*.test.tsx',
       'tests/integration/**/*.test.ts', // Contract tests (non-React)
+      '.claude/tests/**/*.test.ts', // Claude Code tooling tests
     ],
     coverage: {
       provider: 'v8',

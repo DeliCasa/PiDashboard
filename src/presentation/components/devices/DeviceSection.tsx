@@ -1,9 +1,10 @@
 /**
  * DeviceSection Component
  * Complete device provisioning section
+ * Enhanced: 030-dashboard-recovery (explicit state handling)
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Bluetooth, RefreshCw, AlertTriangle } from 'lucide-react';
 import {
   Card,
@@ -28,6 +29,7 @@ import { MQTTConfigForm } from './MQTTConfigForm';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MQTTConfig } from '@/domain/types/entities';
+import type { DeviceListState } from '@/domain/types/ui';
 
 interface DeviceSectionProps {
   className?: string;
@@ -39,11 +41,19 @@ export function DeviceSection({ className }: DeviceSectionProps) {
   const [showProvisionDialog, setShowProvisionDialog] = useState(false);
 
   // Hooks
-  const { data: devices = [], isLoading } = useDevices();
+  const { data: devices = [], isLoading, error, refetch, isError } = useDevices();
   const scanMutation = useDeviceScan();
   const provisionMutation = useProvisionDevice();
 
   const webBluetoothSupported = isWebBluetoothSupported();
+
+  // 030-dashboard-recovery: Compute explicit device list state
+  const deviceListState = useMemo((): DeviceListState => {
+    if (isLoading) return 'loading';
+    if (isError) return 'error';
+    if (devices.length === 0) return 'empty';
+    return 'populated';
+  }, [isLoading, isError, devices.length]);
 
   const handleScan = async () => {
     try {
@@ -150,20 +160,18 @@ export function DeviceSection({ className }: DeviceSectionProps) {
           </div>
         </div>
 
-        {/* Device List */}
-        {isLoading ? (
-          <div className="py-8 text-center text-muted-foreground">
-            <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="mt-2 text-sm">Loading devices...</p>
-          </div>
-        ) : (
-          <DeviceList
-            devices={devices}
-            selectedAddresses={selectedAddresses}
-            onSelectionChange={setSelectedAddresses}
-            onProvision={handleProvision}
-          />
-        )}
+        {/* Device List - 030-dashboard-recovery: Uses explicit state handling */}
+        <DeviceList
+          devices={devices}
+          selectedAddresses={selectedAddresses}
+          onSelectionChange={setSelectedAddresses}
+          onProvision={handleProvision}
+          state={deviceListState}
+          error={error}
+          onRetry={() => refetch()}
+          onScan={handleScan}
+          isScanning={scanMutation.isPending}
+        />
       </CardContent>
 
       {/* Provisioning Dialog */}

@@ -146,7 +146,9 @@ function ConnectionIndicator({
   );
 }
 
-export function SystemStatus({ className, compact = false, preferWebSocket = true }: SystemStatusProps) {
+export function SystemStatus({ className, compact = false, preferWebSocket = false }: SystemStatusProps) {
+  // Note: WebSocket disabled by default because this component is mounted twice
+  // (overview + system tabs), causing connection conflicts. Polling works reliably.
   const {
     data: monitoringData,
     connectionState,

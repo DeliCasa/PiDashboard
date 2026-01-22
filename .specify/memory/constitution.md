@@ -1,74 +1,211 @@
+<!--
+  Sync Impact Report
+  ==================
+  Version change: 0.0.0 → 1.0.0 (MAJOR: Initial ratification)
+
+  Modified principles: N/A (initial creation)
+  Added sections:
+    - Core Principles (4): Hexagonal Architecture, Contract-First API, Test Discipline, Simplicity
+    - Design Pattern Standards
+    - Quality Gates
+    - Governance
+  Removed sections: N/A
+
+  Templates requiring updates:
+    ✅ .specify/templates/plan-template.md - Constitution Check section compatible
+    ✅ .specify/templates/spec-template.md - Requirements format aligned
+    ✅ .specify/templates/tasks-template.md - Test-first pattern enforced
+
+  Follow-up TODOs: None
+-->
+
 # PiDashboard Constitution
 
 ## Core Principles
 
-### I. Hexagonal Architecture
-All code follows hexagonal (ports & adapters) architecture with strict layer separation:
-- `domain/` - Pure business types and entities (no external dependencies)
-- `application/` - Use cases, hooks, and stores (business orchestration)
-- `infrastructure/` - External adapters (API clients, storage, Bluetooth)
-- `presentation/` - UI components and pages
-Dependencies flow inward only. Domain MUST NOT import from infrastructure or presentation.
+### I. Hexagonal Architecture (NON-NEGOTIABLE)
 
-### II. Test-First (NON-NEGOTIABLE)
-- Contract tests MUST be written before API client implementation
-- Component tests MUST cover all interactive UI elements
-- Integration tests MUST verify hook behavior with mocked services
-- E2E tests MUST cover critical user flows
-- Red-Green-Refactor cycle: tests fail first, then implement, then refactor
+All code MUST follow hexagonal (ports and adapters) architecture with strict layer boundaries:
 
-### III. Type Safety
-- All API responses MUST be validated with Zod schemas at runtime
-- TypeScript strict mode is enabled and MUST NOT be weakened
-- No `any` types without explicit justification comment
-- All new types MUST be defined in `domain/types/`
+```
+domain/        → Pure business types and entities. NO external dependencies.
+application/   → Business logic, React hooks, Zustand stores. Depends ONLY on domain/.
+infrastructure/→ External adapters (API clients, Bluetooth, storage). Implements domain contracts.
+presentation/  → React components. Depends on application/ hooks, NEVER on infrastructure/.
+```
 
-### IV. Backward Compatibility
-- New features MUST be behind feature flags until stable
-- Legacy endpoints MUST continue to work during migration
-- Breaking changes require explicit migration plan and user notification
-- Polling fallbacks MUST exist for real-time features (SSE, WebSocket)
+**Rules:**
+- Domain types MUST NOT import from any other layer
+- Application hooks MUST NOT directly call fetch/axios/external APIs
+- Infrastructure adapters MUST implement interfaces defined in domain/
+- Presentation components MUST consume data via application hooks only
+- Circular dependencies between layers are FORBIDDEN
 
-### V. Observability
-- All API requests MUST log correlation IDs when available
-- Connection status (SSE, WebSocket) MUST be visible to users
-- Errors MUST display user-friendly messages with expandable technical details
-- Console debugging MUST be available in development mode
+**Rationale:** Enforces testability, allows infrastructure swapping (mock vs real API), and prevents
+coupling that makes refactoring impossible.
 
-### VI. Simplicity
-- YAGNI: Only implement what is explicitly required
-- Prefer native browser APIs (EventSource, WebSocket) over libraries
-- No premature abstractions - three similar lines is better than premature DRY
-- Feature flags control rollout, not runtime branching
+### II. Contract-First API (NON-NEGOTIABLE)
 
-## Security Requirements
+All API interactions MUST be validated against Zod schemas before consumption:
 
-- API keys MUST NOT be stored in localStorage (use sessionStorage or in-memory)
-- API keys MUST NOT be logged to console
-- Protected endpoints MUST fail gracefully with clear auth error messages
-- MAC address validation MUST occur before submission to prevent injection
+**Rules:**
+- Every API endpoint MUST have a corresponding Zod schema in `src/infrastructure/api/schemas.ts`
+- API responses MUST be parsed through schemas—raw JSON MUST NOT flow into components
+- Schema changes REQUIRE updating all consuming hooks and tests
+- MSW handlers MUST return data that passes schema validation
+- API errors MUST be typed and handled via centralized error types in `src/infrastructure/api/errors.ts`
 
-## Performance Standards
+**Rationale:** Runtime validation catches backend contract breaks before they crash the UI.
+Type safety flows from validated data, not from trusting external systems.
 
-- SSE connection MUST NOT increase memory usage by more than 5MB over 1 hour (measured via DevTools heap snapshot)
-- UI MUST handle 50 devices without frame drops (< 16ms frame time)
-- Bundle size increase for new features MUST be < 20KB gzipped
-- WebSocket reconnection MUST occur within 5 seconds
+### III. Test Discipline (STRICTLY ENFORCED)
+
+Testing is mandatory for all features with minimum coverage gates:
+
+**Coverage Thresholds (CI enforced):**
+- Unit tests: 70% minimum for `src/infrastructure/api/` and `src/lib/`
+- Component tests: All components in `src/presentation/components/` MUST have test files
+- Integration tests: All hooks in `src/application/hooks/` MUST have MSW-backed tests
+- E2E tests: Critical user flows MUST have Playwright coverage
+
+**Rules:**
+- New API clients MUST include contract tests validating Zod schemas
+- New components MUST include render tests with `data-testid` attributes
+- Accessibility tests (axe-core) MUST pass for all new UI components
+- Tests MUST NOT use `any` type—test data must be typed
+- MSW handlers in `tests/mocks/` MUST match real API contracts
+
+**Rationale:** Tests are documentation that runs. They catch regressions, validate contracts, and
+enable safe refactoring. Untested code is legacy code.
+
+### IV. Simplicity & YAGNI (MANDATORY)
+
+Code MUST be minimal and focused on current requirements:
+
+**Rules:**
+- MUST NOT add features beyond what was explicitly requested
+- MUST NOT add "future-proofing" abstractions for hypothetical requirements
+- MUST NOT create utility functions for one-time operations
+- MUST NOT add comments explaining obvious code—code should be self-documenting
+- MUST NOT add error handling for impossible scenarios
+- MUST prefer 3 similar lines over 1 premature abstraction
+- MUST delete unused code completely—no `_unusedVar` patterns or `// removed` comments
+
+**Rationale:** Complexity is debt. Every abstraction has a cost. Simple code is maintainable code.
+The right time to add complexity is when you need it, not before.
+
+## Design Pattern Standards
+
+### State Management Patterns
+
+| Concern | Pattern | Location |
+|---------|---------|----------|
+| Server state (API data) | TanStack React Query | `src/application/hooks/use*.ts` |
+| Client state (UI state) | Zustand stores | `src/application/stores/*.ts` |
+| Form state | React Hook Form or controlled components | Component-local |
+| URL state | React Router params | Route components |
+
+**Rules:**
+- Server state MUST use React Query with proper cache keys and stale times
+- Zustand stores MUST NOT duplicate React Query cache data
+- Global UI state (theme, sidebar) goes in Zustand; local UI state stays in components
+
+### Component Patterns
+
+| Pattern | When to Use | Implementation |
+|---------|-------------|----------------|
+| Composition | Multiple variants needed | Props + children, not inheritance |
+| Render Props | Complex state logic sharing | Function children pattern |
+| Custom Hooks | Reusable stateful logic | Extract to `application/hooks/` |
+| Compound Components | Related component groups | Context + named exports |
+
+**Rules:**
+- Components MUST be functions (no class components)
+- Props MUST be typed with explicit interfaces (no inline types for public components)
+- Components MUST NOT exceed 200 lines—extract logic to hooks if growing
+- Components MUST have a single responsibility
+
+### Error Handling Patterns
+
+```typescript
+// Infrastructure layer: Typed errors
+export class ApiError extends Error {
+  constructor(public code: string, public status: number, message: string) {
+    super(message);
+  }
+}
+
+// Application layer: React Query error handling
+const { error } = useQuery({
+  queryKey: ['resource'],
+  queryFn: fetchResource,
+  retry: (failureCount, error) => error.status !== 401 && failureCount < 3,
+});
+
+// Presentation layer: Error boundaries + fallback UI
+<ErrorBoundary fallback={<ErrorDisplay />}>
+  <Component />
+</ErrorBoundary>
+```
+
+**Rules:**
+- API errors MUST be thrown as typed `ApiError` instances
+- React Query MUST handle retries for transient failures
+- Components MUST have error states—no silent failures
+- User-facing errors MUST be actionable (not raw HTTP codes)
 
 ## Quality Gates
 
-Before any phase is marked complete:
-1. All new code has corresponding tests
-2. `npm run lint` passes with no new warnings
-3. `npm run build` succeeds
-4. Coverage threshold (70%) is maintained
-5. No TypeScript errors
+### Pre-Commit Gates (lint-staged)
+
+- [ ] TypeScript compilation passes (`tsc --noEmit`)
+- [ ] ESLint passes with no errors
+- [ ] Prettier formatting applied
+- [ ] No `console.log` statements (except in tests)
+- [ ] No `any` types (except justified with `// eslint-disable-next-line`)
+
+### PR Gates (CI)
+
+- [ ] All unit tests pass
+- [ ] All component tests pass
+- [ ] All integration tests pass
+- [ ] Coverage thresholds met (70%+)
+- [ ] E2E smoke tests pass (chromium)
+- [ ] Bundle size check passes (no unexpected increases)
+- [ ] No TypeScript errors
+- [ ] No ESLint errors
+
+### Merge Gates
+
+- [ ] All CI checks green
+- [ ] At least one approval (if team > 1)
+- [ ] No unresolved review comments
+- [ ] Branch up to date with main
 
 ## Governance
 
-- This constitution supersedes default practices
-- Amendments require documentation in this file with rationale
-- All PRs/reviews MUST verify compliance with these principles
-- Complexity deviations MUST be justified in code comments
+### Amendment Procedure
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-11 | **Last Amended**: 2026-01-11
+1. Propose change in a PR modifying this file
+2. Document rationale and impact in PR description
+3. Update version number following semantic versioning:
+   - MAJOR: Principle removed or fundamentally redefined
+   - MINOR: New principle or section added
+   - PATCH: Clarifications and wording improvements
+4. Ensure all templates remain aligned (see Sync Impact Report)
+5. Merge requires explicit approval
+
+### Compliance Review
+
+- All PRs MUST verify code follows Constitution principles
+- Complexity MUST be justified via Complexity Tracking in plan.md
+- Violations MUST be documented and approved before merge
+- Constitution supersedes all other documentation when conflicts arise
+
+### Guidance Documents
+
+- Runtime development guidance: `CLAUDE.md`
+- Feature specifications: `specs/[###-feature]/spec.md`
+- Implementation plans: `specs/[###-feature]/plan.md`
+
+**Version**: 1.0.0 | **Ratified**: 2025-01-20 | **Last Amended**: 2025-01-20

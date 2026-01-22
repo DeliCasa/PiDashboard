@@ -1,31 +1,59 @@
 /**
  * Base API Client with fetch wrapper
  * Implements error handling, timeout, and retry logic
+ * Enhanced: 030-dashboard-recovery (endpoint tracking, HTML detection, Accept header)
  */
 
 import type { ApiErrorResponse } from '@/domain/types/api';
+import { HTMLFallbackError } from './errors';
 
 const BASE_URL = '/api';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds per NFR-2
+
+/**
+ * Get the base URL for API calls.
+ * Used for SSE connections which need absolute URLs.
+ * In production, returns empty string (same-origin).
+ * In development with proxy, returns empty string.
+ */
+export function getApiBaseUrl(): string {
+  // Use same-origin for both production and development
+  // Vite proxy handles /api/* in dev, same-origin in production
+  return '';
+}
 const MAX_RETRIES = 3; // per NFR-2
 const RETRY_DELAY_MS = 1000;
 
 /**
  * Custom API Error class with HTTP status code
+ * Enhanced with endpoint, requestId, and timestamp for debugging (030-dashboard-recovery)
  */
 export class ApiError extends Error {
+  /** Timestamp when the error occurred */
+  public readonly timestamp: Date;
+
   constructor(
     public status: number,
     message: string,
     public code?: string,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown>,
+    /** The API endpoint that failed (030-dashboard-recovery) */
+    public endpoint?: string,
+    /** Request correlation ID from X-Request-Id header (030-dashboard-recovery) */
+    public requestId?: string
   ) {
     super(message);
     this.name = 'ApiError';
+    this.timestamp = new Date();
   }
 
-  static fromResponse(status: number, body: ApiErrorResponse): ApiError {
-    return new ApiError(status, body.error, body.code, body.details);
+  static fromResponse(
+    status: number,
+    body: ApiErrorResponse,
+    endpoint?: string,
+    requestId?: string
+  ): ApiError {
+    return new ApiError(status, body.error, body.code, body.details, endpoint, requestId);
   }
 
   static isApiError(error: unknown): error is ApiError {
@@ -67,7 +95,17 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Check if a content-type header indicates HTML content.
+ * Used to detect SPA fallback responses (030-dashboard-recovery).
+ */
+function isHtmlContentType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  return contentType.includes('text/html');
+}
+
+/**
  * Core request function with timeout and error handling
+ * Enhanced with HTML fallback detection and request ID extraction (030-dashboard-recovery)
  */
 async function request<T>(
   endpoint: string,
@@ -91,6 +129,7 @@ async function request<T>(
     signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json', // 030-dashboard-recovery: Explicitly request JSON
       ...fetchOptions.headers,
     },
   };
@@ -109,6 +148,20 @@ async function request<T>(
       const response = await fetch(url, fetchConfig);
       clearTimeout(timeoutId);
 
+      // Extract request ID from response headers (030-dashboard-recovery)
+      const requestId = response.headers.get('X-Request-Id') ?? undefined;
+      const contentType = response.headers.get('content-type');
+
+      // 030-dashboard-recovery: Detect HTML fallback (SPA catch-all)
+      // If we received HTML when we expected JSON, throw a specific error
+      if (isHtmlContentType(contentType)) {
+        throw new HTMLFallbackError(
+          endpoint,
+          'application/json',
+          contentType ?? 'text/html'
+        );
+      }
+
       // Handle non-OK responses
       if (!response.ok) {
         let errorBody: ApiErrorResponse = { error: 'Request failed' };
@@ -117,11 +170,11 @@ async function request<T>(
         } catch {
           // Use default error
         }
-        throw ApiError.fromResponse(response.status, errorBody);
+        // 030-dashboard-recovery: Include endpoint and requestId in error
+        throw ApiError.fromResponse(response.status, errorBody, endpoint, requestId);
       }
 
       // Handle empty responses (204 No Content, etc.)
-      const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         return undefined as T;
       }
@@ -135,6 +188,11 @@ async function request<T>(
       // Handle abort/timeout
       if (error instanceof Error && error.name === 'AbortError') {
         throw new TimeoutError(timeout);
+      }
+
+      // 030-dashboard-recovery: Don't retry on HTML fallback errors
+      if (error instanceof HTMLFallbackError) {
+        throw error;
       }
 
       // Don't retry on client errors (4xx) or ApiErrors

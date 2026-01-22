@@ -1,0 +1,140 @@
+# Feature 030: Dashboard Recovery - Handoff Document
+
+## Summary
+
+Feature 030 implements defensive error handling infrastructure to ensure the dashboard gracefully handles API failures, HTML fallback responses, and other error conditions. The implementation focuses on making API errors visible and actionable rather than allowing silent failures.
+
+## Changes Made
+
+### 1. API Client Infrastructure (`src/infrastructure/api/`)
+
+**errors.ts:**
+- Added `HTMLFallbackError` class to detect when API routes return HTML instead of JSON (SPA fallback)
+- Added `createDebugInfo()` helper to generate copyable debug information
+- Added `formatDebugInfoForClipboard()` for JSON formatting
+
+**client.ts:**
+- Added `Accept: application/json` header to all requests
+- Added HTML content-type detection to throw `HTMLFallbackError`
+- Added `X-Request-Id` header extraction for correlation
+- Extended `ApiError` class with `endpoint`, `requestId`, and `timestamp` fields
+
+### 2. UI State Types (`src/domain/types/ui.ts`)
+
+- Created `DeviceListState` type: `'loading' | 'empty' | 'populated' | 'error'`
+- Created `ConnectionState` type for API connectivity
+
+### 3. DeviceList Component (`src/presentation/components/devices/`)
+
+**DeviceList.tsx:**
+- Added explicit state handling (loading, empty, error, populated)
+- Added loading state UI with spinner
+- Added empty state UI with "Scan for Devices" CTA button
+- Added error state UI using ErrorDisplay with retry support
+
+**DeviceSection.tsx:**
+- Added state computation based on `useDevices` hook results
+- Passes state, error, retry, and scan handlers to DeviceList
+
+### 4. ErrorDisplay Component (`src/presentation/components/common/ErrorDisplay.tsx`)
+
+- Added endpoint path display in error alerts
+- Added HTTP status code display
+- Added timestamp display
+- Added "Copy Debug Info" button for support requests
+- Added special handling for HTMLFallbackError with hint message
+- Enhanced error extraction to handle `ApiError` and `HTMLFallbackError`
+
+### 5. Error Boundaries (`src/App.tsx`)
+
+- Wrapped all tab content sections with ErrorBoundary
+- Each major page section now has error isolation
+
+### 6. Test Coverage
+
+**New Tests:**
+- `tests/unit/api/errors.test.ts`: HTMLFallbackError and createDebugInfo tests
+- `tests/unit/api/client.test.ts`: Accept header, HTML detection, request ID extraction
+
+### 7. Smoke Test Script
+
+Created `scripts/smoke_030_dashboard_recovery.sh`:
+- Tests all major API endpoints for JSON responses
+- Validates content-type headers
+- Reports PASS/FAIL summary
+
+## Files Changed
+
+```
+Modified:
+- src/infrastructure/api/errors.ts
+- src/infrastructure/api/client.ts
+- src/presentation/components/devices/DeviceList.tsx
+- src/presentation/components/devices/DeviceSection.tsx
+- src/presentation/components/common/ErrorDisplay.tsx
+- src/App.tsx
+- specs/030-dashboard-recovery/tasks.md
+
+Created:
+- src/domain/types/ui.ts
+- tests/unit/api/errors.test.ts
+- tests/unit/api/client.test.ts
+- scripts/smoke_030_dashboard_recovery.sh
+```
+
+## Acceptance Criteria Verification
+
+| Criterion | Status | Verification |
+|-----------|--------|--------------|
+| AC-001: `Accept: application/json` header | ✅ | Unit test + code review |
+| AC-002: HTMLFallbackError detection | ✅ | Unit test + code review |
+| AC-003: ErrorDisplay shows endpoint | ✅ | Component code review |
+| AC-004: ErrorDisplay shows timestamp | ✅ | Component code review |
+| AC-005: Copy debug info button | ✅ | Component code review |
+| AC-006: DeviceList explicit states | ✅ | Component code review |
+| AC-007: Error boundaries on routes | ✅ | App.tsx code review |
+| AC-008: All tests pass | ✅ | 1071 tests pass |
+| AC-009: Build passes | ✅ | `npm run build` succeeds |
+
+## Manual Testing Required
+
+The following items require manual testing on the Pi:
+
+1. **T045**: Run smoke script on Pi with SSH tunnel
+2. **T049**: Verify API endpoints return JSON via smoke script
+3. **T050**: Load dashboard, verify device list states (loading/empty/error/populated)
+4. **T051**: Trigger API error, verify error display shows endpoint and copy button
+
+### To Run Smoke Test
+
+```bash
+# From development machine with SSH tunnel
+ssh -L 8082:localhost:8082 pi
+
+# In another terminal
+./scripts/smoke_030_dashboard_recovery.sh http://localhost:8082
+```
+
+## Known Limitations
+
+1. **Lint Warnings**: Pre-existing lint warnings exist (not introduced by this feature)
+2. **E2E Tests**: Not run as part of this implementation (manual verification recommended)
+
+## Related Documents
+
+- Spec: `specs/030-dashboard-recovery/spec.md`
+- Plan: `specs/030-dashboard-recovery/plan.md`
+- Tasks: `specs/030-dashboard-recovery/tasks.md`
+- Requirements Checklist: `specs/030-dashboard-recovery/checklists/requirements.md`
+
+## Next Steps
+
+1. Run smoke test on Pi to verify all endpoints return JSON
+2. Complete manual testing of error display functionality
+3. Consider adding E2E tests for error state scenarios
+4. Monitor for any HTML fallback errors in production
+
+---
+
+*Generated by Claude Code as part of Feature 030 implementation*
+*Date: 2026-01-12*

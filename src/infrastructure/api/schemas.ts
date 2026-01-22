@@ -98,24 +98,45 @@ export type WifiNetworkApi = z.infer<typeof WifiNetworkApiSchema>;
 /**
  * WiFiScan response schema - validates /api/wifi/scan response
  * NOTE: V1 envelope is unwrapped by proxy
+ * NOTE: networks can be null when no networks found (backend quirk)
  */
 export const WifiScanResponseSchema = z.object({
   count: z.number().int().nonnegative(),
-  networks: z.array(WifiNetworkApiSchema),
+  networks: z.array(WifiNetworkApiSchema).nullable(),
 });
 
 export type WifiScanResponse = z.infer<typeof WifiScanResponseSchema>;
 
 /**
+ * WiFi client status enum schema
+ */
+export const WifiClientStatusSchema = z.enum(['connected', 'disconnected', 'connecting', 'error']);
+
+/**
+ * WiFi AP status enum schema
+ */
+export const WifiApStatusSchema = z.enum(['active', 'inactive', 'starting']);
+
+/**
  * WiFiStatus response schema - validates /api/wifi/status response
+ * Matches WiFiStatus entity type in entities.ts
  */
 export const WifiStatusResponseSchema = z.object({
   status: z.object({
-    connected: z.boolean(),
+    client_status: WifiClientStatusSchema,
+    client_ssid: z.string().optional(),
+    client_ip: z.string().optional(),
+    client_signal: z.number().optional(),
+    ap_status: WifiApStatusSchema,
+    ap_ssid: z.string().optional(),
+    ap_ip: z.string().optional(),
+    connected_devices: z.number().optional(),
+    // Backwards compatibility fields (deprecated, may be present in older backends)
+    mode: z.string().optional(),
+    connected: z.boolean().optional(),
     ssid: z.string().optional(),
     ip_address: z.string().optional(),
     signal_strength: z.number().optional(),
-    mode: z.enum(['client', 'ap', 'disconnected']).optional(),
   }),
 });
 

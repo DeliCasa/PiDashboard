@@ -166,7 +166,7 @@ export function useSSE<T = unknown>(options: UseSSEOptions<T>): UseSSEReturn {
       connect();
     } else {
       cleanup();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setConnectionState('disconnected');
     }
 

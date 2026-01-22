@@ -144,7 +144,7 @@
 - [x] T039 [P] Remove or update any dual-port architecture references in docs/ (endpoint corrected: /stop not /close)
 - [x] T040 [P] Document `VITE_API_ORIGIN` env var for advanced dev scenarios in CLAUDE.md
 - [ ] T041 [P] Optional: Create E2E smoke test for same-origin API in tests/e2e/same-origin.spec.ts (deferred)
-- [ ] T042 Commit verification results and documentation updates
+- [x] T042 Commit verification results and documentation updates (commit 1f15a1d)
 
 ---
 
