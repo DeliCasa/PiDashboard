@@ -439,6 +439,8 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - Markdown files (consumption plans, reports), JSON state files (033-handoff-consumption)
 - TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, Document Visibility API (034-esp-camera-integration)
 - V1 Cameras API (`/api/v1/cameras/*`), Base64 JPEG encoding, AlertDialog/Collapsible UI patterns (034-esp-camera-integration)
+- TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (035-auto-onboard-dashboard)
+- N/A (API-driven, no local persistence) (035-auto-onboard-dashboard)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -453,4 +455,5 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 035-auto-onboard-dashboard: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI

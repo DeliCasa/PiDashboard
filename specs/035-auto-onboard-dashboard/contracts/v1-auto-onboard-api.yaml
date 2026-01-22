@@ -1,0 +1,518 @@
+openapi: 3.1.0
+info:
+  title: Auto-Onboard ESP-CAM API
+  description: |
+    DEV MODE ONLY API for automatic ESP-CAM device onboarding.
+
+    Auto-onboarded devices automatically appear in `/api/v1/espcam/paired`.
+    The Dashboard does NOT need to call these APIs to see devices - they
+    appear automatically when onboarded by PiOrchestrator.
+  version: 1.0.0
+  contact:
+    name: DeliCasa Team
+
+servers:
+  - url: /api/v1/onboarding/auto
+    description: Auto-Onboard API (via Vite proxy)
+
+tags:
+  - name: Status
+    description: Auto-onboard status and configuration
+  - name: Control
+    description: Enable/disable auto-onboard
+  - name: Events
+    description: Audit event history
+  - name: Housekeeping
+    description: Metrics and cleanup operations
+
+paths:
+  /status:
+    get:
+      operationId: getAutoOnboardStatus
+      tags: [Status]
+      summary: Get auto-onboard status
+      description: |
+        Returns current toggle state, configuration, and metrics.
+        Use this for polling (every 10-30 seconds).
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /enable:
+    post:
+      operationId: enableAutoOnboard
+      tags: [Control]
+      summary: Enable auto-onboard
+      description: |
+        Enables automatic onboarding of ESP-CAM devices.
+        Requires DEV mode to be configured on the Pi.
+      responses:
+        '200':
+          description: Auto-onboard enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnableDisableResponse'
+        '400':
+          description: Mode not allowed (not in DEV mode)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: ONBOARD_ENABLE_FAILED
+                  message: "auto-onboard mode must be 'dev' to enable"
+                  retryable: false
+                timestamp: "2026-01-22T15:00:00Z"
+
+  /disable:
+    post:
+      operationId: disableAutoOnboard
+      tags: [Control]
+      summary: Disable auto-onboard (kill switch)
+      description: |
+        IMMEDIATELY stops all auto-onboarding.
+        Use this as a kill switch when something goes wrong.
+      responses:
+        '200':
+          description: Auto-onboard disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnableDisableResponse'
+
+  /events:
+    get:
+      operationId: getAuditEvents
+      tags: [Events]
+      summary: Get paginated audit events
+      description: Returns paginated audit trail of onboarding attempts.
+      parameters:
+        - name: limit
+          in: query
+          description: Max results (1-100)
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: mac
+          in: query
+          description: Filter by MAC address
+          schema:
+            type: string
+            example: "AA:BB:CC:DD:EE:FF"
+        - name: stage
+          in: query
+          description: Filter by stage
+          schema:
+            $ref: '#/components/schemas/AuditEventStage'
+        - name: since
+          in: query
+          description: Filter events since ISO 8601 timestamp
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventsResponse'
+
+  /events/{mac}:
+    get:
+      operationId: getEventsByMac
+      tags: [Events]
+      summary: Get events for specific device
+      description: Returns audit trail for a specific device by MAC address.
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          description: Device MAC address
+          schema:
+            type: string
+            example: "AA:BB:CC:DD:EE:FF"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventsResponse'
+
+  /metrics/reset:
+    post:
+      operationId: resetMetrics
+      tags: [Housekeeping]
+      summary: Reset metrics counters
+      description: Resets all metrics counters to zero.
+      responses:
+        '200':
+          description: Metrics reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetMetricsResponse'
+
+  /events/cleanup:
+    post:
+      operationId: cleanupEvents
+      tags: [Housekeeping]
+      summary: Cleanup old events
+      description: Removes audit entries older than specified days.
+      parameters:
+        - name: days
+          in: query
+          description: Retention period in days (1-365)
+          schema:
+            type: integer
+            default: 90
+            minimum: 1
+            maximum: 365
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupEventsResponse'
+
+components:
+  schemas:
+    AutoOnboardMode:
+      type: string
+      enum: [off, dev]
+      description: |
+        - off: Feature disabled at config level
+        - dev: DEV MODE ONLY - automatic onboarding enabled
+
+    AutoOnboardConfig:
+      type: object
+      required:
+        - max_per_minute
+        - burst_size
+        - subnet_allowlist
+        - verification_timeout_sec
+      properties:
+        max_per_minute:
+          type: integer
+          description: Maximum onboarding attempts per minute
+          example: 10
+        burst_size:
+          type: integer
+          description: Burst size for rate limiting
+          example: 5
+        subnet_allowlist:
+          type: array
+          items:
+            type: string
+          description: Allowed subnets for auto-onboard
+          example: ["192.168.10.0/24"]
+        verification_timeout_sec:
+          type: integer
+          description: Timeout in seconds for device verification
+          example: 5
+
+    AutoOnboardMetrics:
+      type: object
+      required:
+        - attempts
+        - success
+        - failed
+        - rejected_by_policy
+        - already_onboarded
+      properties:
+        attempts:
+          type: integer
+          description: Total onboarding attempts
+        success:
+          type: integer
+          description: Successful onboards
+        failed:
+          type: integer
+          description: Failed onboards
+        rejected_by_policy:
+          type: integer
+          description: Rejected by rate limit or policy
+        already_onboarded:
+          type: integer
+          description: Already onboarded (duplicate)
+        last_success_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of last successful onboard
+        last_failure_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of last failed onboard
+
+    AutoOnboardStatus:
+      type: object
+      required:
+        - enabled
+        - mode
+        - config
+      properties:
+        enabled:
+          type: boolean
+          description: Whether auto-onboard is currently enabled
+        mode:
+          $ref: '#/components/schemas/AutoOnboardMode'
+        running:
+          type: boolean
+          description: Whether the worker is actively listening for devices
+        config:
+          $ref: '#/components/schemas/AutoOnboardConfig'
+        metrics:
+          $ref: '#/components/schemas/AutoOnboardMetrics'
+
+    AuditEventStage:
+      type: string
+      enum:
+        - discovered
+        - verified
+        - registered
+        - paired
+        - failed
+        - rejected_by_policy
+      description: Stage in the auto-onboard process
+
+    AuditEventOutcome:
+      type: string
+      enum: [success, failure]
+
+    OnboardingAuditEntry:
+      type: object
+      required:
+        - id
+        - mac_address
+        - stage
+        - outcome
+        - timestamp
+      properties:
+        id:
+          type: integer
+          description: Unique event ID
+        mac_address:
+          type: string
+          description: Device MAC address
+          example: "AA:BB:CC:DD:EE:FF"
+        stage:
+          $ref: '#/components/schemas/AuditEventStage'
+        outcome:
+          $ref: '#/components/schemas/AuditEventOutcome'
+        error_code:
+          type: string
+          description: Error code if failed
+        error_message:
+          type: string
+          description: Error message if failed
+        device_id:
+          type: string
+          description: Device ID assigned after registration
+        ip_address:
+          type: string
+          description: Device IP address
+        firmware_version:
+          type: string
+          description: Firmware version from device
+        container_id:
+          type: string
+          description: Target container ID
+        duration_ms:
+          type: integer
+          description: Duration of this stage in milliseconds
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
+
+    Pagination:
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+        - has_more
+      properties:
+        total:
+          type: integer
+          description: Total number of records
+        limit:
+          type: integer
+          description: Page size
+        offset:
+          type: integer
+          description: Current offset
+        has_more:
+          type: boolean
+          description: Whether more records exist
+
+    ApiError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          example: ONBOARD_ENABLE_FAILED
+        message:
+          type: string
+          description: Human-readable error message
+        retryable:
+          type: boolean
+          description: Whether the client should retry
+
+    # Response Envelopes
+
+    StatusResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/AutoOnboardStatus'
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time
+
+    EnableDisableResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            running:
+              type: boolean
+            message:
+              type: string
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time
+
+    AuditEventsResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/OnboardingAuditEntry'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time
+
+    ResetMetricsResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time
+
+    CleanupEventsResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            deleted_count:
+              type: integer
+            message:
+              type: string
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+          format: date-time

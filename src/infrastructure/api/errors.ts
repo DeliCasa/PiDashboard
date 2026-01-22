@@ -152,6 +152,13 @@ export const ERROR_MESSAGES: Record<ErrorCode | string, string> = {
   CAPTURE_FAILED: 'Failed to capture image. The camera may be busy or experiencing issues.',
   CAPTURE_TIMEOUT: 'Capture timed out. The camera may be slow to respond or disconnected.',
   REBOOT_FAILED: 'Failed to reboot camera. Try again or check the camera status.',
+
+  // Auto-Onboard Errors (035-auto-onboard-dashboard)
+  ONBOARD_ENABLE_FAILED: 'Cannot enable auto-onboard. DEV mode must be configured on the Pi.',
+  ONBOARD_DISABLE_FAILED: 'Failed to disable auto-onboard.',
+  ONBOARD_NOT_AVAILABLE: 'Auto-onboard is not configured on this Pi.',
+  ONBOARD_RATE_LIMITED: 'Too many onboarding requests. Please wait.',
+  ONBOARD_INTERNAL_ERROR: 'An internal error occurred during auto-onboard.',
 };
 
 /**
@@ -302,7 +309,7 @@ export class V1ApiError extends Error {
 /**
  * Error category for UI styling and handling.
  */
-export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'network' | 'validation' | 'infrastructure' | 'unknown';
+export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'onboard' | 'network' | 'validation' | 'infrastructure' | 'unknown';
 
 /**
  * Get the category of an error code for UI handling.
@@ -357,6 +364,17 @@ export function getErrorCategory(code: ErrorCode | string): ErrorCategory {
     code === 'REBOOT_FAILED'
   ) {
     return 'camera';
+  }
+
+  // Auto-onboard errors (035-auto-onboard-dashboard)
+  if (
+    code === 'ONBOARD_ENABLE_FAILED' ||
+    code === 'ONBOARD_DISABLE_FAILED' ||
+    code === 'ONBOARD_NOT_AVAILABLE' ||
+    code === 'ONBOARD_RATE_LIMITED' ||
+    code === 'ONBOARD_INTERNAL_ERROR'
+  ) {
+    return 'onboard';
   }
 
   return 'unknown';

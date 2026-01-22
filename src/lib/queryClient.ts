@@ -106,6 +106,12 @@ export const queryKeys = {
   // Offline Queue
   offline: ['offline'] as const,
   offlineQueue: () => [...queryKeys.offline, 'queue'] as const,
+
+  // Auto-Onboard (035-auto-onboard-dashboard)
+  autoOnboard: ['auto-onboard'] as const,
+  autoOnboardStatus: () => [...queryKeys.autoOnboard, 'status'] as const,
+  autoOnboardEvents: (filters?: { mac?: string; since?: string; limit?: number; offset?: number }) =>
+    [...queryKeys.autoOnboard, 'events', filters] as const,
 } as const;
 
 /**
@@ -120,5 +126,6 @@ export const invalidateQueries = {
   logs: () => queryClient.invalidateQueries({ queryKey: queryKeys.logs }),
   config: () => queryClient.invalidateQueries({ queryKey: queryKeys.config }),
   network: () => queryClient.invalidateQueries({ queryKey: queryKeys.network }),
+  autoOnboard: () => queryClient.invalidateQueries({ queryKey: queryKeys.autoOnboard }),
   all: () => queryClient.invalidateQueries(),
 };
