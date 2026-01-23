@@ -142,7 +142,8 @@ export function AutoOnboardPanel({ className }: AutoOnboardPanelProps) {
         const announcement = status.enabled
           ? 'Auto-onboard is now enabled. ESP-CAM devices will be automatically discovered.'
           : 'Auto-onboard is now disabled.';
-        setStatusAnnouncement(announcement);
+        // Defer to avoid synchronous setState in effect body
+        queueMicrotask(() => setStatusAnnouncement(announcement));
         // Clear announcement after it's been read
         const timer = setTimeout(() => setStatusAnnouncement(''), 3000);
         return () => clearTimeout(timer);
@@ -167,12 +168,13 @@ export function AutoOnboardPanel({ className }: AutoOnboardPanelProps) {
   // Error state - could be that feature is not available
   if (isStatusError) {
     // Check if it's "not available" error - just hide the panel
-    if (
-      V1ApiError.isV1ApiError(statusError) &&
-      statusError.code === 'ONBOARD_NOT_AVAILABLE'
-    ) {
-      // Feature not available - don't show anything
-      return null;
+    // This includes NOT_FOUND (endpoint not registered) and ONBOARD_NOT_AVAILABLE
+    if (V1ApiError.isV1ApiError(statusError)) {
+      const hideOnCodes = ['ONBOARD_NOT_AVAILABLE', 'NOT_FOUND', 'ENDPOINT_NOT_FOUND'];
+      if (hideOnCodes.includes(statusError.code)) {
+        // Feature not available - don't show anything
+        return null;
+      }
     }
 
     // Other errors - show error state with retry

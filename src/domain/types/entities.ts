@@ -10,7 +10,10 @@ export type WifiClientStatus = 'connected' | 'disconnected' | 'connecting' | 'er
 export type WifiApStatus = 'active' | 'inactive' | 'starting';
 export type WifiEncryption = 'open' | 'wep' | 'wpa' | 'wpa2' | 'wpa3';
 export type DeviceStatus = 'discovered' | 'connecting' | 'provisioning' | 'provisioned' | 'online' | 'offline' | 'error';
-export type CameraStatus = 'online' | 'offline' | 'error' | 'rebooting';
+// CRITICAL: This type MUST match PiOrchestrator's CameraStatus values
+// See: PiOrchestrator/internal/domain/entities/camera.go
+// See: PiOrchestrator/internal/domain/entities/camera_device.go
+export type CameraStatus = 'online' | 'offline' | 'error' | 'rebooting' | 'discovered' | 'pairing' | 'connecting';
 export type CameraResolution = 'QQVGA' | 'QVGA' | 'VGA' | 'SVGA' | 'XGA' | 'SXGA' | 'UXGA';
 export type DoorState = 'open' | 'closed' | 'unknown';
 export type LockState = 'locked' | 'unlocked' | 'unknown';
