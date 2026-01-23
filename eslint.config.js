@@ -19,5 +19,10 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // WebSocket/SSE connection management legitimately requires setState in effects
+      // This is a documented React pattern for external subscriptions
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

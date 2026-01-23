@@ -17,11 +17,13 @@ import {
   DiagnosticsListResponseSchema,
   RebootResultSchema,
   CameraErrorResponseSchema,
+  PairedCamerasResponseSchema,
   type Camera,
   type CameraDiagnostics,
   type CaptureResult,
   type RebootResult,
   type CameraListResponse,
+  type PairedCamerasData,
 } from './v1-cameras-schemas';
 
 // ============================================================================
@@ -479,6 +481,56 @@ export const v1CamerasApi = {
       error: response.error,
     };
   },
+
+  /**
+   * List all paired ESP-CAM devices.
+   *
+   * Returns devices registered via manual pairing or auto-onboard.
+   * Uses GET /api/v1/espcam/paired endpoint.
+   *
+   * @returns Promise with paired cameras data including total and online count
+   * @throws V1ApiError on failure
+   */
+  listPaired: async (): Promise<PairedCamerasData> => {
+    try {
+      const response = await apiClient.get<unknown>(
+        '/v1/espcam/paired',
+        { timeout: DEFAULT_TIMEOUT_MS }
+      );
+
+      // Check if we got HTML (SPA fallback) instead of JSON
+      if (typeof response === 'string' && response.includes('<!doctype html>')) {
+        throw new V1ApiError('NOT_FOUND', 'espcam/paired endpoint not available', false);
+      }
+
+      // Validate response against schema
+      const parsed = PairedCamerasResponseSchema.safeParse(response);
+      if (!parsed.success) {
+        console.warn('[V1 Cameras] listPaired response validation failed:', parsed.error.issues);
+        // Try to extract data anyway
+        const resp = response as { data?: PairedCamerasData; success?: boolean };
+        if (resp.data) {
+          return resp.data;
+        }
+        throw new V1ApiError('INTERNAL_ERROR', 'Invalid response format', false);
+      }
+
+      if (!parsed.data.success || !parsed.data.data) {
+        throw new V1ApiError(
+          parsed.data.error?.code || 'INTERNAL_ERROR',
+          parsed.data.error?.message || 'Failed to get paired cameras',
+          parsed.data.error?.retryable ?? false
+        );
+      }
+
+      return parsed.data.data;
+    } catch (error) {
+      if (error instanceof V1ApiError) {
+        throw error;
+      }
+      throw parseErrorResponse(error);
+    }
+  },
 };
 
 // ============================================================================
@@ -491,12 +543,18 @@ export type {
   CaptureResult,
   RebootResult,
   CameraListResponse,
+  CameraDevice,
+  PairedCamerasData,
+  PairedCamerasResponse,
 } from './v1-cameras-schemas';
 
 export {
   CameraStatusSchema,
   CameraResolutionSchema,
   ConnectionQualitySchema,
+  CameraDeviceSchema,
+  PairedCamerasDataSchema,
+  PairedCamerasResponseSchema,
   type CameraStatus,
   type CameraResolution,
   type ConnectionQuality,

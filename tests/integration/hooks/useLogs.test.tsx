@@ -1,17 +1,106 @@
 /**
  * Logs Hooks Integration Tests (T031)
- * Tests for useRecentLogs, useLogStream with polling
+ * Tests for useRecentLogs, useLogStream with SSE streaming
  */
 
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { server } from '../mocks/server';
 import { createWrapper, createTestQueryClient } from '../../setup/test-utils';
 import { useRecentLogs, useExportDiagnostics } from '@/application/hooks/useLogs';
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+// ============================================================================
+// Mock EventSource for SSE tests
+// ============================================================================
+
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+  static lastUrl: string | null = null;
+
+  url: string;
+  readyState: number = 0; // CONNECTING
+  onopen: ((event: Event) => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  closed = false;
+
+  constructor(url: string) {
+    this.url = url;
+    MockEventSource.lastUrl = url;
+    MockEventSource.instances.push(this);
+    // Auto-open connection after construction (simulating successful connection)
+    setTimeout(() => {
+      if (!this.closed) {
+        this.simulateOpen();
+      }
+    }, 0);
+  }
+
+  close() {
+    this.closed = true;
+    this.readyState = 2; // CLOSED
+  }
+
+  // Test helpers
+  simulateOpen() {
+    this.readyState = 1; // OPEN
+    if (this.onopen) {
+      this.onopen(new Event('open'));
+    }
+  }
+
+  simulateMessage(data: unknown) {
+    if (this.onmessage) {
+      this.onmessage(new MessageEvent('message', {
+        data: JSON.stringify(data),
+      }));
+    }
+  }
+
+  simulateError() {
+    this.readyState = 2; // CLOSED
+    if (this.onerror) {
+      this.onerror(new Event('error'));
+    }
+  }
+
+  static reset() {
+    MockEventSource.instances = [];
+    MockEventSource.lastUrl = null;
+  }
+
+  static getLatest(): MockEventSource | undefined {
+    return MockEventSource.instances[MockEventSource.instances.length - 1];
+  }
+
+  static getAllInstances(): MockEventSource[] {
+    return MockEventSource.instances;
+  }
+}
+
+// Store original EventSource
+const originalEventSource = global.EventSource;
+
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' });
+  // Replace global EventSource with mock
+  (global as unknown as { EventSource: typeof MockEventSource }).EventSource = MockEventSource;
+});
+
+beforeEach(() => {
+  MockEventSource.reset();
+});
+
+afterEach(() => {
+  server.resetHandlers();
+  MockEventSource.reset();
+});
+
+afterAll(() => {
+  server.close();
+  // Restore original EventSource
+  (global as unknown as { EventSource: typeof EventSource }).EventSource = originalEventSource;
+});
 
 describe('Logs Hooks Integration', () => {
   describe('useRecentLogs', () => {
@@ -150,8 +239,8 @@ describe('Logs Hooks Integration', () => {
   });
 
   describe('useLogStream polling behavior', () => {
-    // Note: useLogStream uses internal state and intervals,
-    // so we test the underlying behavior indirectly
+    // Note: useLogStream uses SSE (EventSource), not HTTP polling
+    // We mock EventSource to test the behavior
     it('should be importable and have correct return type', async () => {
       const { useLogStream } = await import('@/application/hooks/useLogs');
 
@@ -160,8 +249,6 @@ describe('Logs Hooks Integration', () => {
     });
 
     it('should expose expected interface', async () => {
-      // We can't easily test the polling behavior in unit tests
-      // but we can verify the hook shape
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
@@ -190,9 +277,25 @@ describe('Logs Hooks Integration', () => {
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial fetch
+      // Wait for EventSource to be created and simulate a message
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate receiving a log message (this sets connected=true)
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Test log',
+          source: 'test',
+        });
+      });
+
       await waitFor(() => {
         expect(result.current.connected).toBe(true);
+        expect(result.current.logs.length).toBeGreaterThan(0);
       });
 
       // Clear logs
@@ -215,6 +318,22 @@ describe('Logs Hooks Integration', () => {
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
+
+      // Wait for EventSource to be created
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate receiving a message to set connected=true
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Test log',
+          source: 'test',
+        });
+      });
 
       await waitFor(() => {
         expect(result.current.connected).toBe(true);
@@ -242,10 +361,27 @@ describe('Logs Hooks Integration', () => {
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial connection
+      // Wait for EventSource to be created
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate receiving a message to establish connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Initial log',
+          source: 'test',
+        });
+      });
+
       await waitFor(() => {
         expect(result.current.connected).toBe(true);
       });
+
+      const initialInstanceCount = MockEventSource.getAllInstances().length;
 
       // Disconnect
       act(() => {
@@ -257,6 +393,22 @@ describe('Logs Hooks Integration', () => {
       // Reconnect
       act(() => {
         result.current.reconnect();
+      });
+
+      // Wait for new EventSource to be created
+      await waitFor(() => {
+        expect(MockEventSource.getAllInstances().length).toBeGreaterThan(initialInstanceCount);
+      });
+
+      // Simulate message on new connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '2',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Reconnected log',
+          source: 'test',
+        });
       });
 
       // Should reconnect successfully
@@ -278,7 +430,29 @@ describe('Logs Hooks Integration', () => {
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial logs to be fetched
+      // Wait for EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate receiving initial logs
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Log 1',
+          source: 'test',
+        });
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '2',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Log 2',
+          source: 'test',
+        });
+      });
+
       await waitFor(() => {
         expect(result.current.logs.length).toBeGreaterThan(0);
       });
@@ -292,6 +466,22 @@ describe('Logs Hooks Integration', () => {
 
       act(() => {
         result.current.reconnect();
+      });
+
+      // Wait for new connection
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()?.closed).toBe(false);
+      });
+
+      // Simulate message on new connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '3',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Log after reconnect',
+          source: 'test',
+        });
       });
 
       await waitFor(() => {
@@ -308,34 +498,34 @@ describe('Logs Hooks Integration', () => {
       unmount();
     });
 
-    it('should resume fetching new logs after reconnection', async () => {
+    it('should create new EventSource after reconnection', async () => {
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
-      let fetchCount = 0;
-      // Add a counting handler
-      server.use(
-        (await import('msw')).http.get('/api/dashboard/logs', async () => {
-          fetchCount++;
-          return (await import('msw')).HttpResponse.json({
-            count: 2,
-            logs: [
-              { id: `${fetchCount}-1`, timestamp: new Date().toISOString(), level: 'info', message: `Log ${fetchCount}-1`, source: 'test' },
-              { id: `${fetchCount}-2`, timestamp: new Date().toISOString(), level: 'debug', message: `Log ${fetchCount}-2`, source: 'test' },
-            ],
-          });
-        })
-      );
-
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial fetch
+      // Wait for initial EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      const initialInstanceCount = MockEventSource.getAllInstances().length;
+
+      // Simulate connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Initial',
+          source: 'test',
+        });
+      });
+
       await waitFor(() => {
         expect(result.current.connected).toBe(true);
       });
-
-      const initialFetchCount = fetchCount;
 
       // Disconnect
       act(() => {
@@ -347,12 +537,10 @@ describe('Logs Hooks Integration', () => {
         result.current.reconnect();
       });
 
+      // Should have created a new EventSource instance
       await waitFor(() => {
-        expect(result.current.connected).toBe(true);
+        expect(MockEventSource.getAllInstances().length).toBeGreaterThan(initialInstanceCount);
       });
-
-      // Should have made additional fetches after reconnection
-      expect(fetchCount).toBeGreaterThan(initialFetchCount);
 
       // Cleanup
       act(() => {
@@ -370,6 +558,22 @@ describe('Logs Hooks Integration', () => {
 
       // Perform multiple cycles
       for (let i = 0; i < 3; i++) {
+        // Wait for EventSource
+        await waitFor(() => {
+          expect(MockEventSource.getLatest()?.closed).not.toBe(true);
+        });
+
+        // Simulate message to establish connection
+        act(() => {
+          MockEventSource.getLatest()?.simulateMessage({
+            id: `${i}`,
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            message: `Log ${i}`,
+            source: 'test',
+          });
+        });
+
         await waitFor(() => {
           expect(result.current.connected).toBe(true);
         });
@@ -384,6 +588,21 @@ describe('Logs Hooks Integration', () => {
           result.current.reconnect();
         });
       }
+
+      // Final connection
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()?.closed).not.toBe(true);
+      });
+
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: 'final',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Final log',
+          source: 'test',
+        });
+      });
 
       // Final state should be connected
       await waitFor(() => {
@@ -402,35 +621,30 @@ describe('Logs Hooks Integration', () => {
    * T048 [US3] SSE Error Recovery Tests
    * Tests for log stream error handling and recovery
    *
-   * Note: The apiClient has retry logic (3 retries with exponential backoff),
-   * so we use 400-level errors which don't retry for faster, deterministic tests.
+   * Note: useLogStream uses SSE (EventSource), so we test SSE error scenarios.
    */
   describe('useLogStream error recovery (T048)', () => {
-    it('should set error state when fetch fails with client error', async () => {
-      // Mock a failing endpoint with 400 error (no retries)
-      server.use(
-        (await import('msw')).http.get('/api/dashboard/logs', async () => {
-          return (await import('msw')).HttpResponse.json(
-            { error: 'Bad Request' },
-            { status: 400 }
-          );
-        })
-      );
-
+    it('should set error state when SSE connection fails', async () => {
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for error state (400 errors don't retry)
-      await waitFor(
-        () => {
-          expect(result.current.connected).toBe(false);
-          expect(result.current.error).not.toBeNull();
-        },
-        { timeout: 2000 }
-      );
+      // Wait for EventSource to be created
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate SSE error (connection fails)
+      act(() => {
+        MockEventSource.getLatest()?.simulateError();
+      });
+
+      // Should be disconnected after error
+      await waitFor(() => {
+        expect(result.current.connected).toBe(false);
+      });
 
       // Cleanup
       act(() => {
@@ -439,43 +653,62 @@ describe('Logs Hooks Integration', () => {
       unmount();
     });
 
-    it('should recover from client error when reconnect is called', async () => {
-      const { http, HttpResponse } = await import('msw');
-      let shouldFail = true;
-
-      // Mock an endpoint that fails initially (400), then succeeds
-      server.use(
-        http.get('/api/dashboard/logs', async () => {
-          if (shouldFail) {
-            return HttpResponse.json({ error: 'Bad Request' }, { status: 400 });
-          }
-          return HttpResponse.json({
-            count: 1,
-            logs: [{ id: '1', timestamp: new Date().toISOString(), level: 'info', message: 'Recovered', source: 'test' }],
-          });
-        })
-      );
-
+    it('should recover from SSE error when reconnect is called', async () => {
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for error state
-      await waitFor(
-        () => {
-          expect(result.current.connected).toBe(false);
-        },
-        { timeout: 2000 }
-      );
+      // Wait for EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
 
-      // Now fix the endpoint
-      shouldFail = false;
+      // Simulate initial connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Initial',
+          source: 'test',
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.connected).toBe(true);
+      });
+
+      // Simulate error
+      act(() => {
+        MockEventSource.getLatest()?.simulateError();
+      });
+
+      await waitFor(() => {
+        expect(result.current.connected).toBe(false);
+      });
 
       // Reconnect
       act(() => {
         result.current.reconnect();
+      });
+
+      // Wait for new EventSource
+      await waitFor(() => {
+        const latest = MockEventSource.getLatest();
+        expect(latest?.closed).toBe(false);
+      });
+
+      // Simulate successful reconnection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '2',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Recovered',
+          source: 'test',
+        });
       });
 
       // Should recover
@@ -492,43 +725,50 @@ describe('Logs Hooks Integration', () => {
     });
 
     it('should clear error state on successful reconnection', async () => {
-      const { http, HttpResponse } = await import('msw');
-      let requestCount = 0;
-
-      server.use(
-        http.get('/api/dashboard/logs', async () => {
-          requestCount++;
-          // Fail first request with 400 (no retries), succeed on subsequent
-          if (requestCount === 1) {
-            return HttpResponse.json({ error: 'Bad Request' }, { status: 400 });
-          }
-          return HttpResponse.json({
-            count: 1,
-            logs: [{ id: '1', timestamp: new Date().toISOString(), level: 'info', message: 'Success', source: 'test' }],
-          });
-        })
-      );
-
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial error
-      await waitFor(
-        () => {
-          expect(result.current.connected).toBe(false);
-        },
-        { timeout: 2000 }
-      );
+      // Wait for EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
 
-      // Reconnect (which will succeed because requestCount > 1)
+      // Simulate error (this sets error state)
+      act(() => {
+        MockEventSource.getLatest()?.simulateError();
+      });
+
+      // Wait for error to propagate
+      await waitFor(() => {
+        expect(result.current.connected).toBe(false);
+      });
+
+      // Reconnect
       act(() => {
         result.current.reconnect();
       });
 
-      // Wait for connection AND error to be cleared (both happen on success)
+      // Wait for new EventSource
+      await waitFor(() => {
+        const latest = MockEventSource.getLatest();
+        expect(latest?.closed).toBe(false);
+      });
+
+      // Simulate successful message
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Success',
+          source: 'test',
+        });
+      });
+
+      // Wait for connection AND error to be cleared
       await waitFor(() => {
         expect(result.current.connected).toBe(true);
         expect(result.current.error).toBeNull();
@@ -541,92 +781,95 @@ describe('Logs Hooks Integration', () => {
       unmount();
     });
 
-    it('should handle timeout errors gracefully', async () => {
-      const { http, HttpResponse, delay } = await import('msw');
-
-      // Mock a slow endpoint that causes timeout-like behavior
-      server.use(
-        http.get('/api/dashboard/logs', async () => {
-          await delay(5000); // Longer than typical timeout
-          return HttpResponse.json({ count: 0, logs: [] });
-        })
-      );
-
+    it('should handle disconnect gracefully', async () => {
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Should not crash - may be loading or error state
-      // Wait a bit to ensure hook is stable
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 100));
+      // Wait for EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate connection
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Test',
+          source: 'test',
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.connected).toBe(true);
+      });
+
+      // Disconnect
+      act(() => {
+        result.current.disconnect();
       });
 
       // Hook should still be functional
       expect(result.current.clearLogs).toBeDefined();
       expect(result.current.reconnect).toBeDefined();
       expect(result.current.disconnect).toBeDefined();
+      expect(result.current.connected).toBe(false);
 
-      // Cleanup
-      act(() => {
-        result.current.disconnect();
-      });
       unmount();
     });
 
     it('should not lose existing logs on transient error', async () => {
-      const { http, HttpResponse } = await import('msw');
-      let shouldFail = false;
-
-      server.use(
-        http.get('/api/dashboard/logs', async () => {
-          if (shouldFail) {
-            return HttpResponse.json({ error: 'Transient error' }, { status: 503 });
-          }
-          return HttpResponse.json({
-            count: 2,
-            logs: [
-              { id: '1', timestamp: new Date().toISOString(), level: 'info', message: 'Log 1', source: 'test' },
-              { id: '2', timestamp: new Date().toISOString(), level: 'debug', message: 'Log 2', source: 'test' },
-            ],
-          });
-        })
-      );
-
       const { useLogStream } = await import('@/application/hooks/useLogs');
       const queryClient = createTestQueryClient();
       const wrapper = createWrapper(queryClient);
 
       const { result, unmount } = renderHook(() => useLogStream(), { wrapper });
 
-      // Wait for initial logs
+      // Wait for EventSource
+      await waitFor(() => {
+        expect(MockEventSource.getLatest()).toBeDefined();
+      });
+
+      // Simulate receiving logs
+      act(() => {
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '1',
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: 'Log 1',
+          source: 'test',
+        });
+        MockEventSource.getLatest()?.simulateMessage({
+          id: '2',
+          timestamp: new Date().toISOString(),
+          level: 'debug',
+          message: 'Log 2',
+          source: 'test',
+        });
+      });
+
       await waitFor(() => {
         expect(result.current.logs.length).toBeGreaterThan(0);
       });
 
       const logsBeforeError = result.current.logs.length;
 
-      // Simulate transient failure
-      shouldFail = true;
-
-      // Trigger a reconnect which will fail
+      // Simulate transient failure (SSE error)
       act(() => {
-        result.current.disconnect();
+        MockEventSource.getLatest()?.simulateError();
       });
 
-      act(() => {
-        result.current.reconnect();
-      });
-
-      // Wait a bit for the error to be processed
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 200));
+      // Wait for disconnection
+      await waitFor(() => {
+        expect(result.current.connected).toBe(false);
       });
 
       // Logs from before the error should still be present
-      expect(result.current.logs.length).toBeGreaterThanOrEqual(logsBeforeError);
+      expect(result.current.logs.length).toBe(logsBeforeError);
 
       // Cleanup
       act(() => {

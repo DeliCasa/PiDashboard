@@ -40,7 +40,6 @@ export function TestingModeToggle({ className }: TestingModeToggleProps) {
   // Sync remaining time when active/expiresAt changes
   // This is intentional - we need to sync derived state when dependencies change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRemainingTime(active && expiresAt ? getRemainingTime(expiresAt) : 0);
   }, [active, expiresAt]);
 

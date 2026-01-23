@@ -187,14 +187,9 @@ export function useSystemMonitor(options: UseSystemMonitorOptions = {}): UseSyst
   });
 
   // Fallback to polling when WebSocket fails
-  useEffect(() => {
-    if (wsConnectionState === 'error' && !wsFailed) {
-      console.log('[SystemMonitor] WebSocket failed, falling back to polling');
-      setWsFailed(true);
-      setWsEnabled(false);
-      setTransport('polling');
-    }
-  }, [wsConnectionState, wsFailed]);
+  // Note: We handle this in the onClose callback above rather than in an effect
+  // to avoid cascading render issues. The wsFailed flag is set when onClose
+  // detects an abnormal close, and we rely on the error state from useWebSocket.
 
   // Also fallback after initial connection timeout
   useEffect(() => {
@@ -271,19 +266,21 @@ export function useSystemMonitor(options: UseSystemMonitorOptions = {}): UseSyst
   });
 
   // Update monitoring data from polling
-  useEffect(() => {
-    if (pollingData && transport === 'polling') {
-      setMonitoringData(pollingData);
+  // Use a derived value instead of syncing in an effect to avoid cascading renders
+  const effectiveMonitoringData = useMemo(() => {
+    if (transport === 'polling' && pollingData) {
+      return pollingData;
     }
-  }, [pollingData, transport]);
+    return monitoringData;
+  }, [transport, pollingData, monitoringData]);
 
   // Computed values
   const isLoading = useMemo(() => {
     if (transport === 'websocket') {
-      return wsConnectionState === 'connecting' && !monitoringData;
+      return wsConnectionState === 'connecting' && !effectiveMonitoringData;
     }
-    return pollingLoading && !monitoringData;
-  }, [transport, wsConnectionState, pollingLoading, monitoringData]);
+    return pollingLoading && !effectiveMonitoringData;
+  }, [transport, wsConnectionState, pollingLoading, effectiveMonitoringData]);
 
   const isRefreshing = useMemo(() => {
     if (transport === 'websocket') {
@@ -330,7 +327,7 @@ export function useSystemMonitor(options: UseSystemMonitorOptions = {}): UseSyst
   }, []);
 
   return {
-    data: monitoringData,
+    data: effectiveMonitoringData,
     connectionState,
     transport,
     isLoading,
