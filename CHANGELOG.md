@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-01-23
+
 ### Added - PiOrchestrator V1 API Sync (Feature 006)
 
 #### Phase 1: Types & Contracts (Complete)
@@ -113,7 +115,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `@radix-ui/react-scroll-area` for ScrollArea component
 - Added `@radix-ui/react-dropdown-menu` for DropdownMenu component
 
-## [1.3.0] - 2026-01-07
+### Fixed
+- useLogs: Fix 'connect() accessed before declaration' with connectRef pattern
+- useSystemMonitor: Derive effectiveMonitoringData instead of useEffect sync
+- useSSE: Remove unnecessary eslint-disable comment
+- TestingModeToggle: Remove unnecessary eslint-disable comment
+
+### Changed
+- eslint.config: Disable react-hooks/set-state-in-effect rule
+- V1 Cameras API: Add diagnostics endpoint support
+- CameraCard: Add diagnostics action button
+- CameraDetail: Add diagnostics section with expandable JSON view
+- AutoOnboardPanel: Enhanced layout and interaction patterns
+
+### Infrastructure
+- Nginx deployment configuration for dashboard serving
+- Dashboard now served independently on port 8082
+- API requests proxied to PiOrchestrator on port 8081
+
+## [1.2.0] - 2026-01-07
 
 ### Added - Testing Research & Hardening (Feature 005)
 
