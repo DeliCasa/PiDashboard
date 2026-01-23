@@ -162,7 +162,6 @@ export function useSSE<T = unknown>(options: UseSSEOptions<T>): UseSSEReturn {
   // SSE connection setup requires calling connect() in effect - this is intentional
   useEffect(() => {
     if (enabled && url) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       connect();
     } else {
       cleanup();

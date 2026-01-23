@@ -58,6 +58,7 @@ export function useExportDiagnostics() {
  *
  * Falls back to polling if SSE connection fails after 3 attempts.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useLogStream(_level?: string) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
@@ -65,6 +66,7 @@ export function useLogStream(_level?: string) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectRef = useRef<(() => void) | null>(null);
   const maxLogs = 500; // Keep last 500 entries per spec
   const maxReconnectAttempts = 3;
 
@@ -96,7 +98,7 @@ export function useLogStream(_level?: string) {
           setConnected(true);
           reconnectAttemptsRef.current = 0; // Reset on successful message
         },
-        (_event) => {
+        () => {
           setConnected(false);
 
           // Attempt reconnection with backoff
@@ -106,7 +108,8 @@ export function useLogStream(_level?: string) {
             setError(`Connection lost. Reconnecting in ${delay / 1000}s...`);
 
             reconnectTimeoutRef.current = setTimeout(() => {
-              connect();
+              // Use ref to get latest connect function
+              connectRef.current?.();
             }, delay);
           } else {
             setError('Unable to connect to log stream. Check backend availability.');
@@ -121,6 +124,11 @@ export function useLogStream(_level?: string) {
       setError(e instanceof Error ? e.message : 'Failed to connect to log stream');
     }
   }, [addLog]);
+
+  // Keep connectRef in sync with latest connect function
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
