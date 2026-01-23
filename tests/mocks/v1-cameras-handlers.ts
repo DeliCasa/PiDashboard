@@ -170,8 +170,8 @@ export function createV1CamerasHandlers(overrides?: Partial<CameraMockState>) {
       return HttpResponse.json(camera);
     }),
 
-    // POST /api/v1/cameras/:id/capture - Capture image
-    http.post(`${BASE_URL}/:id/capture`, async ({ params }) => {
+    // POST /api/v1/cameras/:id/snapshot - Capture image (V1 uses /snapshot)
+    http.post(`${BASE_URL}/:id/snapshot`, async ({ params }) => {
       await delay(state.captureDelay ?? 500);
       const id = decodeURIComponent(params.id as string);
       const camera = state.cameras.find((c) => c.id === id);
@@ -316,7 +316,7 @@ export const v1CamerasErrorHandlers = {
   }),
 
   /** Simulates capture timeout */
-  captureTimeout: http.post(`${BASE_URL}/:id/capture`, async () => {
+  captureTimeout: http.post(`${BASE_URL}/:id/snapshot`, async () => {
     await delay(31000); // Exceeds 30s timeout
     return HttpResponse.json(
       cameraError('CAPTURE_TIMEOUT', 'Capture operation timed out', true),
