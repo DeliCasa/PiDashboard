@@ -22,7 +22,6 @@ import {
   type CameraDiagnostics,
   type CaptureResult,
   type RebootResult,
-  type CameraListResponse,
   type PairedCamerasData,
 } from './v1-cameras-schemas';
 
@@ -150,7 +149,18 @@ export const v1CamerasApi = {
    */
   list: async (): Promise<Camera[]> => {
     try {
-      const response = await apiClient.get<CameraListResponse | string>(
+      // V1 API returns envelope: { success: true, data: { cameras: [...], count: N } }
+      // Or error envelope: { success: false, error: { code, message, ... } }
+      interface V1CamerasEnvelope {
+        success: boolean;
+        data?: {
+          cameras?: RawCamera[];
+          count?: number;
+        };
+        error?: string | { code?: string; message?: string };
+      }
+
+      const response = await apiClient.get<V1CamerasEnvelope | string>(
         V1_CAMERAS_BASE,
         { timeout: DEFAULT_TIMEOUT_MS }
       );
@@ -161,9 +171,15 @@ export const v1CamerasApi = {
         return v1CamerasApi._listLegacy();
       }
 
-      // Normalize camera data from API response
-      const resp = response as { cameras?: RawCamera[]; count?: number };
-      const rawCameras = Array.isArray(resp.cameras) ? resp.cameras : [];
+      // Extract cameras from V1 envelope
+      const envelope = response as V1CamerasEnvelope;
+
+      // Check if V1 API returned an error (e.g., NOT_FOUND means endpoint doesn't exist)
+      if (!envelope.success && envelope.error) {
+        console.warn('[V1 Cameras] V1 API returned error, falling back to legacy endpoint:', envelope.error);
+        return v1CamerasApi._listLegacy();
+      }
+      const rawCameras = envelope.data?.cameras || [];
       const cameras = normalizeCameras(rawCameras);
 
       // Validate normalized response
@@ -326,7 +342,7 @@ export const v1CamerasApi = {
       const timeoutId = setTimeout(() => controller.abort(), CAPTURE_TIMEOUT_MS);
 
       const response = await fetch(
-        `/api${V1_CAMERAS_BASE}/${encodeURIComponent(id)}/snapshot`,
+        `/api${V1_CAMERAS_BASE}/${encodeURIComponent(id)}/capture`,
         {
           method: 'POST',
           signal: controller.signal,
@@ -337,7 +353,7 @@ export const v1CamerasApi = {
       // Check if we got HTML (SPA fallback)
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('text/html')) {
-        console.warn('[V1 Cameras] V1 snapshot returned HTML, falling back to legacy endpoint');
+        console.warn('[V1 Cameras] V1 capture returned HTML, falling back to legacy endpoint');
         return v1CamerasApi._captureLegacy(id);
       }
 
@@ -372,15 +388,18 @@ export const v1CamerasApi = {
         };
       }
 
-      // Handle JSON response (legacy format)
+      // Handle JSON response (V1 envelope or legacy format)
       const jsonResponse = await response.json();
+      // V1 API returns: { success: true, data: { image_data: "...", camera_id: "...", ... } }
+      // Legacy returns: { success: true, image: "...", ... }
+      const data = jsonResponse.data || jsonResponse;
       return {
         success: jsonResponse.success ?? true,
-        image: jsonResponse.image,
-        timestamp: jsonResponse.timestamp || new Date().toISOString(),
-        camera_id: jsonResponse.camera_id || id,
-        file_size: jsonResponse.file_size,
-        error: jsonResponse.error,
+        image: data.image_data || data.image || jsonResponse.image,
+        timestamp: data.captured_at || data.timestamp || jsonResponse.timestamp || new Date().toISOString(),
+        camera_id: data.camera_id || jsonResponse.camera_id || id,
+        file_size: data.file_size || jsonResponse.file_size,
+        error: data.error || jsonResponse.error,
       };
     } catch (error) {
       // Handle abort/timeout

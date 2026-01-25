@@ -165,12 +165,12 @@ export function SystemStatus({ className, compact = false, preferWebSocket = fal
   const systemHealth = monitoringData?.system_health;
 
   if (isLoading && !systemHealth) {
-    return <SystemStatusSkeleton className={className} />;
+    return <SystemStatusSkeleton className={className} data-testid="system-loading" />;
   }
 
   if ((error || !systemHealth) && !isLoading) {
     return (
-      <Card className={className}>
+      <Card className={className} data-testid="system-error">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -190,7 +190,7 @@ export function SystemStatus({ className, compact = false, preferWebSocket = fal
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
             <WifiOff className="h-8 w-8" />
             <p>{error || 'Failed to load system status'}</p>
-            <Button variant="outline" size="sm" onClick={refresh}>
+            <Button variant="outline" size="sm" onClick={refresh} data-testid="system-retry-button">
               <RefreshCw className="mr-2 h-4 w-4" />
               Retry
             </Button>
@@ -220,7 +220,7 @@ export function SystemStatus({ className, compact = false, preferWebSocket = fal
         : 'normal';
 
   return (
-    <Card className={className}>
+    <Card className={className} data-testid="system-status">
       <CardHeader className={compact ? 'pb-2' : undefined}>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -287,9 +287,9 @@ export function SystemStatus({ className, compact = false, preferWebSocket = fal
   );
 }
 
-function SystemStatusSkeleton({ className }: { className?: string }) {
+function SystemStatusSkeleton({ className, ...props }: { className?: string; 'data-testid'?: string }) {
   return (
-    <Card className={className}>
+    <Card className={className} {...props}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />

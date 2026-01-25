@@ -103,7 +103,8 @@ jobs:
         run: nix develop --command npm run build
 
       - name: Run E2E smoke tests (Chromium only)
-        run: nix develop --command npx playwright test --project=chromium tests/e2e/smoke.spec.ts tests/e2e/wifi.spec.ts tests/e2e/system.spec.ts
+        # Feature 037: Added resilience tests for API failure scenarios
+        run: nix develop --command npx playwright test --project=chromium tests/e2e/smoke.spec.ts tests/e2e/wifi.spec.ts tests/e2e/system.spec.ts tests/e2e/cameras-resilience.spec.ts tests/e2e/wifi-degradation.spec.ts tests/e2e/door-resilience.spec.ts tests/e2e/system-resilience.spec.ts
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
