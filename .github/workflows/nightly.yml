@@ -268,7 +268,8 @@ jobs:
         run: nix develop --command npm run build
 
       - name: Run resilience tests
-        run: nix develop --command npx playwright test tests/e2e/resilience.spec.ts --project=chromium
+        # Feature 037: Include new API resilience tests in nightly run
+        run: nix develop --command npx playwright test tests/e2e/resilience.spec.ts tests/e2e/cameras-resilience.spec.ts tests/e2e/wifi-degradation.spec.ts tests/e2e/door-resilience.spec.ts tests/e2e/system-resilience.spec.ts --project=chromium
 
       - name: Upload resilience report
         uses: actions/upload-artifact@v4

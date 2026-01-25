@@ -66,9 +66,30 @@ export const test = base.extend<PiDashboardFixtures>({
 
   /**
    * Check for console errors during test
+   * Feature: 037-api-resilience - Enhanced with 404/503 filtering for optional endpoints
    */
   expectNoConsoleErrors: async ({ page }, use) => {
     const consoleErrors: string[] = [];
+
+    // Optional endpoint patterns that should not produce console errors on 404/503
+    const optionalEndpointPatterns = [
+      '/api/wifi/',
+      '/wifi/',
+    ];
+
+    // Check if error is from an optional endpoint returning 404/503
+    const isOptionalEndpoint404 = (text: string): boolean => {
+      // Check for 404/503 status codes in error message
+      const is404or503 = text.includes('404') || text.includes('503') ||
+                          text.includes('Not Found') || text.includes('Service Unavailable');
+
+      // Check if it's related to an optional endpoint
+      const isOptionalEndpoint = optionalEndpointPatterns.some(pattern =>
+        text.includes(pattern)
+      );
+
+      return is404or503 && isOptionalEndpoint;
+    };
 
     // Collect console errors
     page.on('console', (msg) => {
@@ -80,7 +101,8 @@ export const test = base.extend<PiDashboardFixtures>({
           !text.includes('Download the React DevTools') &&
           !text.includes('Failed to load resource: net::ERR_') && // Network errors in tests
           !text.includes('[API Contract]') && // Schema validation warnings (graceful degradation)
-          !text.includes('Service Worker registration failed') // SW errors in test environment
+          !text.includes('Service Worker registration failed') && // SW errors in test environment
+          !isOptionalEndpoint404(text) // Feature 037: Ignore 404/503 on optional endpoints
         ) {
           consoleErrors.push(text);
         }

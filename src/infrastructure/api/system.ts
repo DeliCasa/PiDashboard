@@ -4,14 +4,16 @@
  *
  * Feature: 005-testing-research-and-hardening (T021)
  * Includes Zod schema validation for runtime API contract enforcement.
+ * Updated: Uses V1 client for proper envelope unwrapping.
  */
 
 import { apiClient } from './client';
+import { v1Get } from './v1-client';
 import {
-  SystemInfoResponseSchema,
+  SystemInfoDataSchema,
   safeParseWithErrors,
 } from './schemas';
-import type { RawSystemInfoResponse } from './schemas';
+import type { RawSystemInfoResponse, SystemInfoData } from './schemas';
 import type { SystemStatus, PiModel } from '@/domain/types/entities';
 import type { HealthCheckResponse } from '@/domain/types/api';
 
@@ -24,10 +26,8 @@ export type { RawSystemInfoResponse };
  *
  * Note: Schema validation happens at the API call level (getInfo),
  * so this function assumes valid data.
- * NOTE: V1 envelope is unwrapped by proxy, so we receive data directly.
  */
-export function transformSystemInfo(raw: RawSystemInfoResponse): SystemStatus {
-  // V1 envelope is unwrapped - data is the response itself now
+export function transformSystemInfo(raw: SystemInfoData): SystemStatus {
   const data = raw;
   const uptimeSeconds = Math.floor(data.uptime / 1_000_000_000);
 
@@ -66,19 +66,21 @@ export function transformSystemInfo(raw: RawSystemInfoResponse): SystemStatus {
 export const systemApi = {
   /**
    * Get current system status (CPU, memory, disk, temperature)
+   * Uses V1 client for proper envelope unwrapping.
    * Validates response against Zod schema before transformation.
    */
   getInfo: async (): Promise<SystemStatus> => {
-    const raw = await apiClient.get<RawSystemInfoResponse>('/system/info');
+    // Use V1 client which handles envelope unwrapping
+    const { data } = await v1Get<SystemInfoData>('/system/info');
 
     // Validate API response against schema
-    const validation = safeParseWithErrors(SystemInfoResponseSchema, raw);
+    const validation = safeParseWithErrors(SystemInfoDataSchema, data);
     if (!validation.success) {
       console.warn('[API Contract] System info validation failed:', validation.errors);
       // Still proceed with transformation - graceful degradation
     }
 
-    return transformSystemInfo(raw);
+    return transformSystemInfo(data);
   },
 
   /**

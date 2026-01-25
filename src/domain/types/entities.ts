@@ -13,7 +13,7 @@ export type DeviceStatus = 'discovered' | 'connecting' | 'provisioning' | 'provi
 // CRITICAL: This type MUST match PiOrchestrator's CameraStatus values
 // See: PiOrchestrator/internal/domain/entities/camera.go
 // See: PiOrchestrator/internal/domain/entities/camera_device.go
-export type CameraStatus = 'online' | 'offline' | 'error' | 'rebooting' | 'discovered' | 'pairing' | 'connecting';
+export type CameraStatus = 'online' | 'offline' | 'idle' | 'error' | 'rebooting' | 'discovered' | 'pairing' | 'connecting';
 export type CameraResolution = 'QQVGA' | 'QVGA' | 'VGA' | 'SVGA' | 'XGA' | 'SXGA' | 'UXGA';
 export type DoorState = 'open' | 'closed' | 'unknown';
 export type LockState = 'locked' | 'unlocked' | 'unknown';

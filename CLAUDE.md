@@ -443,6 +443,7 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence) (035-auto-onboard-dashboard)
 - TypeScript 5.7+, React 19.2.0 + Zod 3.x, TanStack React Query 5.x, Vitest, Playwright (036-project-constitution)
 - N/A (documentation feature) (036-project-constitution)
+- TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (037-api-resilience)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -457,6 +458,13 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 037-api-resilience: API Resilience & UI Correctness with:
+  - `isFeatureUnavailable()` helper for 404/503 graceful degradation
+  - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
+  - Camera resilience tests: loading, success, empty, error, network failure
+  - WiFi graceful degradation: silent 404/503 handling, no console errors
+  - Door/System error state handling with retry buttons
+  - Updated CI workflows with resilience test coverage
+  - Added data-testid attributes for reliable E2E testing
 - 036-project-constitution: Added TypeScript 5.7+, React 19.2.0 + Zod 3.x, TanStack React Query 5.x, Vitest, Playwright
 - 035-auto-onboard-dashboard: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
-- 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI

@@ -249,15 +249,15 @@ export const LockStateSchema = z.enum([
 export type LockState = z.infer<typeof LockStateSchema>;
 
 /**
- * DoorStatus schema - validates /api/door/status response
- * Matches Door entity type
+ * DoorStatus schema - validates transformed Door entity
+ * Uses camelCase to match Door entity type in entities.ts
  */
 export const DoorStatusSchema = z.object({
+  id: z.string(),
   state: DoorStateSchema,
-  lock_state: LockStateSchema.optional(),
-  last_command: z.string().optional(),
-  last_command_time: z.string().optional(),
-  error: z.string().optional(),
+  lockState: LockStateSchema,
+  lastCommand: z.string().optional(),
+  relayPin: z.number(),
 });
 
 export type DoorStatus = z.infer<typeof DoorStatusSchema>;

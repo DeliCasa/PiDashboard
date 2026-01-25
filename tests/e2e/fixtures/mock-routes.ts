@@ -263,8 +263,9 @@ export const defaultMockData = {
 
 /**
  * Mock route handler configuration
+ * Feature: 037-api-resilience - Enhanced for error scenario testing
  */
-interface MockRouteConfig {
+export interface MockRouteConfig {
   /** Mock response data - will be JSON stringified */
   data?: unknown;
   /** HTTP status code (default: 200) */
@@ -277,13 +278,22 @@ interface MockRouteConfig {
   error?: boolean;
   /** Error message for error responses */
   errorMessage?: string;
+  /** Abort the request with a network error (connectionfailed, connectionreset, timedout) */
+  abort?: 'connectionfailed' | 'connectionreset' | 'timedout';
 }
 
 /**
  * Create a route handler with configuration
+ * Feature: 037-api-resilience - Enhanced with network abort support
  */
 function createRouteHandler(config: MockRouteConfig) {
   return async (route: Route) => {
+    // Handle network failures (abort)
+    if (config.abort) {
+      await route.abort(config.abort);
+      return;
+    }
+
     if (config.delay) {
       await new Promise((resolve) => setTimeout(resolve, config.delay));
     }
@@ -305,6 +315,18 @@ function createRouteHandler(config: MockRouteConfig) {
       body: JSON.stringify(config.data),
     });
   };
+}
+
+/**
+ * Mock endpoint helper - applies a route configuration to a pattern
+ * Feature: 037-api-resilience
+ */
+export async function mockEndpoint(
+  page: Page,
+  pattern: string,
+  config: MockRouteConfig
+): Promise<void> {
+  await page.route(pattern, createRouteHandler(config));
 }
 
 /**
@@ -646,3 +668,300 @@ export const mockScenarios = {
     });
   },
 };
+
+// ============================================================================
+// V1 Cameras API Mock Data (Feature: 037-api-resilience)
+// ============================================================================
+
+/**
+ * V1 Camera mock data - matches PiOrchestrator V1 API format
+ */
+export const mockCameraData = {
+  /** Online camera with full health metrics */
+  cameraOnline: {
+    id: 'cam-001',
+    name: 'Front Door Camera',
+    status: 'online' as const,
+    last_seen: new Date().toISOString(),
+    ip_address: '192.168.1.100',
+    mac_address: 'AA:BB:CC:DD:EE:FF',
+    health: {
+      wifi_rssi: -45,
+      free_heap: 120000,
+      uptime_seconds: 3600,
+      resolution: 'VGA',
+      firmware_version: '1.0.0',
+    },
+  },
+
+  /** Camera in error state */
+  cameraError: {
+    id: 'cam-002',
+    name: 'Garage Camera',
+    status: 'error' as const,
+    last_seen: new Date(Date.now() - 60000).toISOString(),
+    ip_address: '192.168.1.101',
+    mac_address: 'AA:BB:CC:DD:EE:01',
+    health: {
+      wifi_rssi: -70,
+      free_heap: 50000,
+      uptime_seconds: 100,
+      resolution: 'VGA',
+      firmware_version: '1.0.0',
+      last_error: 'Connection timeout',
+    },
+  },
+
+  /** Offline camera */
+  cameraOffline: {
+    id: 'cam-003',
+    name: 'Backyard Camera',
+    status: 'offline' as const,
+    last_seen: new Date(Date.now() - 3600000).toISOString(),
+    ip_address: '192.168.1.102',
+    mac_address: 'AA:BB:CC:DD:EE:02',
+    health: {
+      wifi_rssi: 0,
+      free_heap: 0,
+      uptime_seconds: 0,
+      resolution: 'VGA',
+      firmware_version: '1.0.0',
+    },
+  },
+};
+
+/**
+ * V1 Cameras API response structures
+ */
+export const mockCamerasResponses = {
+  /** Success: Multiple cameras */
+  withCameras: {
+    success: true,
+    data: {
+      cameras: [
+        mockCameraData.cameraOnline,
+        mockCameraData.cameraError,
+        mockCameraData.cameraOffline,
+      ],
+    },
+    correlation_id: 'test-correlation-id',
+    timestamp: new Date().toISOString(),
+  },
+
+  /** Success: Empty list */
+  empty: {
+    success: true,
+    data: {
+      cameras: [],
+    },
+    correlation_id: 'test-correlation-id',
+    timestamp: new Date().toISOString(),
+  },
+
+  /** Error: Server error */
+  serverError: {
+    success: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Database connection failed',
+      retryable: true,
+    },
+    correlation_id: 'test-correlation-id',
+    timestamp: new Date().toISOString(),
+  },
+};
+
+// ============================================================================
+// Error Scenario Mock Presets (Feature: 037-api-resilience)
+// ============================================================================
+
+/**
+ * Apply cameras success mock with data
+ */
+export async function mockCamerasSuccess(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 200,
+    data: mockCamerasResponses.withCameras,
+  });
+  // Also mock individual camera endpoints
+  await mockEndpoint(page, '**/api/v1/cameras/*', {
+    status: 200,
+    data: {
+      success: true,
+      data: mockCameraData.cameraOnline,
+      correlation_id: 'test-correlation-id',
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * Apply cameras empty list mock
+ */
+export async function mockCamerasEmpty(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 200,
+    data: mockCamerasResponses.empty,
+  });
+}
+
+/**
+ * Apply cameras server error mock (500)
+ */
+export async function mockCamerasError(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 500,
+    error: true,
+    errorMessage: 'Internal server error',
+  });
+  await mockEndpoint(page, '**/api/v1/cameras/*', {
+    status: 500,
+    error: true,
+    errorMessage: 'Internal server error',
+  });
+}
+
+/**
+ * Apply cameras loading mock (slow response for testing loading state)
+ */
+export async function mockCamerasLoading(
+  page: Page,
+  delayMs: number = 3000
+): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 200,
+    delay: delayMs,
+    data: mockCamerasResponses.withCameras,
+  });
+}
+
+/**
+ * Apply cameras network failure mock
+ */
+export async function mockCamerasNetworkFailure(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    abort: 'connectionfailed',
+  });
+  await mockEndpoint(page, '**/api/v1/cameras/*', {
+    abort: 'connectionfailed',
+  });
+}
+
+/**
+ * Apply WiFi 404 mock (feature unavailable)
+ */
+export async function mockWifi404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/wifi/scan', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+  await mockEndpoint(page, '**/api/wifi/status', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+  await mockEndpoint(page, '**/api/wifi/connect', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+}
+
+/**
+ * Apply WiFi 503 mock (service unavailable)
+ */
+export async function mockWifi503(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/wifi/scan', {
+    status: 503,
+    error: true,
+    errorMessage: 'Service unavailable',
+  });
+  await mockEndpoint(page, '**/api/wifi/status', {
+    status: 503,
+    error: true,
+    errorMessage: 'Service unavailable',
+  });
+  await mockEndpoint(page, '**/api/wifi/connect', {
+    status: 503,
+    error: true,
+    errorMessage: 'Service unavailable',
+  });
+}
+
+/**
+ * Apply WiFi network failure mock
+ */
+export async function mockWifiNetworkFailure(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/wifi/**', {
+    abort: 'connectionfailed',
+  });
+}
+
+/**
+ * Apply door success mock
+ */
+export async function mockDoorSuccess(
+  page: Page,
+  state: 'open' | 'closed' | 'locked' = 'closed'
+): Promise<void> {
+  await mockEndpoint(page, '**/api/door/status', {
+    status: 200,
+    data: {
+      state: state === 'locked' ? 'closed' : state,
+      lock_state: state === 'locked' ? 'locked' : 'unlocked',
+      last_command: state === 'locked' ? 'lock' : state,
+      last_command_time: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * Apply door error mock
+ */
+export async function mockDoorError(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/door/status', {
+    status: 500,
+    error: true,
+    errorMessage: 'Door sensor not responding',
+  });
+}
+
+/**
+ * Apply door network failure mock
+ */
+export async function mockDoorNetworkFailure(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/door/**', {
+    abort: 'connectionfailed',
+  });
+}
+
+/**
+ * Apply system info success mock
+ */
+export async function mockSystemSuccess(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/system/info', {
+    status: 200,
+    data: defaultMockData.systemInfo,
+  });
+}
+
+/**
+ * Apply system info error mock
+ */
+export async function mockSystemError(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/system/info', {
+    status: 500,
+    error: true,
+    errorMessage: 'System info unavailable',
+  });
+}
+
+/**
+ * Apply system info network failure mock
+ */
+export async function mockSystemNetworkFailure(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/system/**', {
+    abort: 'connectionfailed',
+  });
+}

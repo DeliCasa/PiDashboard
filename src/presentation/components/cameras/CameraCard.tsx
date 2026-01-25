@@ -34,6 +34,7 @@ interface CameraCardProps {
 const statusConfig: Record<CameraStatus, { label: string; icon: typeof CheckCircle; color: string }> = {
   online: { label: 'Online', icon: CheckCircle, color: 'text-green-500' },
   offline: { label: 'Offline', icon: XCircle, color: 'text-red-500' },
+  idle: { label: 'Idle', icon: CheckCircle, color: 'text-yellow-500' },
   error: { label: 'Error', icon: AlertCircle, color: 'text-red-500' },
   rebooting: { label: 'Rebooting', icon: RefreshCw, color: 'text-yellow-500' },
   discovered: { label: 'Discovered', icon: Wifi, color: 'text-blue-500' },

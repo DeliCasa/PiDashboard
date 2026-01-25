@@ -3,10 +3,12 @@
  * WiFi configuration, scanning, and connection management
  *
  * Feature: 005-testing-research-and-hardening (T022)
+ * Note: WiFi endpoints may not be available in all PiOrchestrator versions.
+ * Graceful fallbacks are provided when endpoints return 404.
  * Includes Zod schema validation for runtime API contract enforcement.
  */
 
-import { apiClient } from './client';
+import { apiClient, ApiError } from './client';
 import {
   WifiScanResponseSchema,
   WifiStatusResponseSchema,
@@ -32,6 +34,14 @@ interface WiFiScanApiResponse {
   count: number;
   networks: WiFiNetworkApiResponse[];
 }
+
+/**
+ * Default WiFi status when endpoint is unavailable
+ */
+const DEFAULT_WIFI_STATUS: WiFiStatus = {
+  client_status: 'disconnected',
+  ap_status: 'inactive',
+};
 
 /**
  * Transform backend security string to frontend encryption type
@@ -67,32 +77,51 @@ export function transformNetwork(network: WiFiNetworkApiResponse): WiFiNetwork {
 }
 
 /**
+ * Check if error indicates endpoint is unavailable (404 or 503)
+ */
+function isEndpointUnavailable(error: unknown): boolean {
+  if (!ApiError.isApiError(error)) return false;
+  // 404 = Not Found, 503 = Service Unavailable (nginx proxy can't reach backend route)
+  return error.status === 404 || error.status === 503;
+}
+
+/**
  * WiFi API endpoints
+ * Note: These endpoints may not exist in all PiOrchestrator versions.
+ * Graceful fallbacks are provided.
  */
 export const wifiApi = {
   /**
    * Scan for available WiFi networks
-   * Validates response and transforms to frontend WiFiNetwork format.
+   * Returns empty array if endpoint doesn't exist.
    */
   scan: async (): Promise<{ networks: WiFiNetwork[] }> => {
-    const response = await apiClient.get<WiFiScanApiResponse>('/wifi/scan');
+    try {
+      const response = await apiClient.get<WiFiScanApiResponse>('/wifi/scan');
 
-    // Validate API response against schema
-    const validation = safeParseWithErrors(WifiScanResponseSchema, response);
-    if (!validation.success) {
-      console.warn('[API Contract] WiFi scan validation failed:', validation.errors);
+      // Validate API response against schema
+      const validation = safeParseWithErrors(WifiScanResponseSchema, response);
+      if (!validation.success) {
+        console.warn('[API Contract] WiFi scan validation failed:', validation.errors);
+      }
+
+      return {
+        networks: Array.isArray(response.networks)
+          ? response.networks.map(transformNetwork)
+          : [],
+      };
+    } catch (error) {
+      if (isEndpointUnavailable(error)) {
+        console.info('[WiFi API] Scan endpoint not available');
+        return { networks: [] };
+      }
+      throw error;
     }
-
-    return {
-      networks: Array.isArray(response.networks)
-        ? response.networks.map(transformNetwork)
-        : [],
-    };
   },
 
   /**
    * Connect to a WiFi network
-   * Validates response against schema.
+   * Throws if endpoint doesn't exist.
    */
   connect: async (ssid: string, password?: string): Promise<WiFiConnectResponse> => {
     const response = await apiClient.post<WiFiConnectResponse>('/wifi/connect', { ssid, password });
@@ -114,17 +143,25 @@ export const wifiApi = {
 
   /**
    * Get current WiFi status
-   * Validates response against schema.
+   * Returns default status if endpoint doesn't exist.
    */
   getStatus: async (): Promise<{ status: WiFiStatus }> => {
-    const response = await apiClient.get<{ status: WiFiStatus }>('/wifi/status');
+    try {
+      const response = await apiClient.get<{ status: WiFiStatus }>('/wifi/status');
 
-    // Validate API response against schema
-    const validation = safeParseWithErrors(WifiStatusResponseSchema, response);
-    if (!validation.success) {
-      console.warn('[API Contract] WiFi status validation failed:', validation.errors);
+      // Validate API response against schema
+      const validation = safeParseWithErrors(WifiStatusResponseSchema, response);
+      if (!validation.success) {
+        console.warn('[API Contract] WiFi status validation failed:', validation.errors);
+      }
+
+      return response;
+    } catch (error) {
+      if (isEndpointUnavailable(error)) {
+        console.info('[WiFi API] Status endpoint not available');
+        return { status: DEFAULT_WIFI_STATUS };
+      }
+      throw error;
     }
-
-    return response;
   },
 };

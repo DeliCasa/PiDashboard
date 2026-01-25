@@ -18,6 +18,7 @@ import { z } from 'zod';
 export const CameraStatusSchema = z.enum([
   'online',      // Camera is actively communicating
   'offline',     // Camera not responding
+  'idle',        // Camera not seen recently but still registered (2-10 min)
   'error',       // Camera in error state
   'rebooting',   // Camera is rebooting (requested)
   'discovered',  // Found via mDNS but not paired
