@@ -173,7 +173,7 @@
 - [x] T046 [P] Verify polling pauses when tab hidden (existing behavior) per FR-012 - VERIFIED: useVisibilityAwareInterval in useCameras.ts
 - [x] T047 Run full test suite: npm run lint && npm test && npm run build
 - [x] T048 Update CLAUDE.md with feature 037 completion notes
-- [ ] T049 Create PR with all changes
+- [x] T049 Create PR with all changes - PR #4
 
 ---
 
