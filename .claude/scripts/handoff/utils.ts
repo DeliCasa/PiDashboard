@@ -16,7 +16,6 @@ import type {
   ValidationError,
   Requirement,
   DetectionResult,
-  DetectionSummary,
 } from './types.js';
 import { ErrorCode, DEFAULT_HANDOFF_PATTERNS, PENDING_STATUSES } from './types.js';
 
@@ -178,7 +177,7 @@ export function formatHandoffEntry(doc: HandoffDocument, isNew: boolean = false)
  */
 export function formatDetectionSummary(result: DetectionResult): string {
   const lines: string[] = [];
-  const { pending, newSinceLastRun, errors, summary } = result;
+  const { pending, newSinceLastRun, errors } = result;
 
   // Header
   if (pending.length === 0 && errors.length === 0) {

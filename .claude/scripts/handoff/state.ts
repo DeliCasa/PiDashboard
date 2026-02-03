@@ -33,7 +33,7 @@ export async function loadState(): Promise<HandoffState> {
     }
 
     return state;
-  } catch (err) {
+  } catch {
     // File doesn't exist or is invalid - return empty state
     return {
       version: 1,
@@ -51,7 +51,7 @@ export async function saveState(state: HandoffState): Promise<void> {
 
   try {
     await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
-  } catch (err) {
+  } catch {
     // Silently fail - state persistence is optional
     console.warn('Warning: Could not save handoff state');
   }

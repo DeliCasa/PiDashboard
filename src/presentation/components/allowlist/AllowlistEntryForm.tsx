@@ -13,33 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/**
- * MAC address validation regex.
- * Accepts formats: AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABBCCDDEEFF
- */
-const MAC_REGEX = /^([0-9A-Fa-f]{2}[:-]?){5}([0-9A-Fa-f]{2})$/;
-
-/**
- * Normalize MAC address to uppercase with colons.
- */
-function normalizeMac(mac: string): string {
-  // Remove all separators and convert to uppercase
-  const clean = mac.replace(/[:-]/g, '').toUpperCase();
-  // Insert colons every 2 characters
-  return clean.match(/.{2}/g)?.join(':') ?? clean;
-}
-
-/**
- * Validate MAC address format.
- */
-function isValidMac(mac: string): boolean {
-  return MAC_REGEX.test(mac);
-}
+import { isValidMac, normalizeMac } from '@/lib/mac-utils';
 
 // ============================================================================
 // Types
@@ -224,8 +198,3 @@ export function AllowlistEntryForm({
   );
 }
 
-// ============================================================================
-// Exports
-// ============================================================================
-
-export { isValidMac, normalizeMac };

@@ -3,11 +3,10 @@
  * Feature 033 - Extracts actionable requirements from handoffs
  */
 
-import type { HandoffDocument, Requirement } from './types.js';
+import type { HandoffDocument } from './types.js';
 import type {
   ExtractedRequirement,
   WorkItemCategory,
-  RequirementSource,
   RiskItem,
 } from './types-consume.js';
 import {

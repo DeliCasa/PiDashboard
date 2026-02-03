@@ -231,7 +231,7 @@ function getStatusIcon(status: HandoffStatus): string {
 /**
  * Generate consumption plan for a handoff
  */
-async function handlePlan(handoffId: string, options: ConsumeOptions): Promise<void> {
+async function handlePlan(handoffId: string): Promise<void> {
   // Find the handoff
   const result = await detectHandoffs();
   const handoff = result.handoffs.find(h => h.frontmatter.handoff_id === handoffId);
@@ -281,8 +281,7 @@ async function handlePlan(handoffId: string, options: ConsumeOptions): Promise<v
  */
 async function handleComplete(
   handoffId: string,
-  reqId: string,
-  _options: ConsumeOptions
+  reqId: string
 ): Promise<void> {
   const planPath = path.join('specs', `${handoffId}-consumption`, 'plan.md');
 
@@ -357,7 +356,7 @@ export function updatePlanStatus(
 /**
  * Close a handoff with verification and report generation
  */
-async function handleClose(handoffId: string, options: ConsumeOptions): Promise<void> {
+async function handleClose(handoffId: string): Promise<void> {
   const planPath = path.join('specs', `${handoffId}-consumption`, 'plan.md');
 
   // Parse plan
@@ -419,7 +418,7 @@ export async function runVerificationCommands(): Promise<VerificationResult[]> {
 
   // Run npm test
   try {
-    const { stdout } = await execAsync('npm test 2>&1', { timeout: 120000 });
+    await execAsync('npm test 2>&1', { timeout: 120000 });
     results.push({
       command: 'npm test',
       expected: 'All tests pass',
@@ -474,8 +473,7 @@ export function formatVerificationResults(results: VerificationResult[]): string
  */
 async function handleBlock(
   handoffId: string,
-  reason: string,
-  _options: ConsumeOptions
+  reason: string
 ): Promise<void> {
   const planPath = path.join('specs', `${handoffId}-consumption`, 'plan.md');
 
@@ -606,13 +604,13 @@ async function main(): Promise<void> {
         console.log('');
       }
     } else if (options.plan) {
-      await handlePlan(options.plan, options);
+      await handlePlan(options.plan);
     } else if (options.complete) {
-      await handleComplete(options.complete.handoffId, options.complete.reqId, options);
+      await handleComplete(options.complete.handoffId, options.complete.reqId);
     } else if (options.close) {
-      await handleClose(options.close, options);
+      await handleClose(options.close);
     } else if (options.block) {
-      await handleBlock(options.block.handoffId, options.block.reason, options);
+      await handleBlock(options.block.handoffId, options.block.reason);
     } else {
       printHelp();
     }

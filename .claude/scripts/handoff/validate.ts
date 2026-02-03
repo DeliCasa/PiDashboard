@@ -10,7 +10,7 @@ import type {
   HandoffStatus,
   ValidationError,
 } from './types.js';
-import { ErrorCode, VALID_TRANSITIONS, VALID_REPOS } from './types.js';
+import { ErrorCode, VALID_TRANSITIONS } from './types.js';
 
 // =============================================================================
 // Zod Schemas (from contracts/handoff-schema.yaml)
