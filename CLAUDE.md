@@ -444,6 +444,13 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - TypeScript 5.7+, React 19.2.0 + Zod 3.x, TanStack React Query 5.x, Vitest, Playwright (036-project-constitution)
 - N/A (documentation feature) (036-project-constitution)
 - TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (037-api-resilience)
+- TypeScript ~5.9.3 with React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (038-dev-observability-panels)
+- TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, MSW 2.x, Vitest, Zod 3.x (039-msw-hook-tests)
+- N/A (test infrastructure only) (039-msw-hook-tests)
+- TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Vitest 3.2.4, MSW 2.8.0, Zod 3.x (040-test-reliability-hardening)
+- N/A (mock fixtures are TypeScript files, handoff docs are Markdown) (040-test-reliability-hardening)
+- N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation) (041-handoff-normalization)
+- Markdown files with YAML frontmatter, `.handoff-state.json` (auto-regenerated) (041-handoff-normalization)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -458,7 +465,9 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
-- 037-api-resilience: API Resilience & UI Correctness with:
+- 042-diagnostics-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
+- 041-handoff-normalization: Added N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation)
+- 041-handoff-normalization: Added N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation)
   - `isFeatureUnavailable()` helper for 404/503 graceful degradation
   - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
   - Camera resilience tests: loading, success, empty, error, network failure
@@ -466,5 +475,3 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
   - Door/System error state handling with retry buttons
   - Updated CI workflows with resilience test coverage
   - Added data-testid attributes for reliable E2E testing
-- 036-project-constitution: Added TypeScript 5.7+, React 19.2.0 + Zod 3.x, TanStack React Query 5.x, Vitest, Playwright
-- 035-auto-onboard-dashboard: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4

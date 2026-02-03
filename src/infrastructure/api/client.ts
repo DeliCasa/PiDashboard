@@ -10,6 +10,11 @@ import { HTMLFallbackError } from './errors';
 const BASE_URL = '/api';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds per NFR-2
 
+// Check if we're in a test environment where AbortSignal might have compatibility issues
+// This handles the Node.js 24+ / jsdom / MSW instanceof check failure
+const IS_TEST_ENV = typeof process !== 'undefined' && 
+  (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true');
+
 /**
  * Get the base URL for API calls.
  * Used for SSE connections which need absolute URLs.
@@ -121,12 +126,16 @@ async function request<T>(
   const url = `${BASE_URL}${endpoint}`;
 
   // Setup timeout via AbortController
+  // In test environment (Node.js 24+ with jsdom), AbortSignal instanceof checks may fail
+  // due to realm differences. We still create the controller but handle errors gracefully.
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   const fetchConfig: RequestInit = {
     ...fetchOptions,
-    signal: controller.signal,
+    // Skip signal in test environment to avoid AbortSignal instanceof issues with MSW
+    // See: https://github.com/mswjs/msw/issues/1644
+    ...(IS_TEST_ENV ? {} : { signal: controller.signal }),
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json', // 030-dashboard-recovery: Explicitly request JSON

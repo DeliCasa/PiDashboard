@@ -96,15 +96,16 @@ export interface ConfigApiResponse {
   }>;
 }
 
-// Door API responses
+// Door API responses (raw format from PiOrchestrator)
 export interface DoorStatusApiResponse {
-  state: 'locked' | 'unlocked' | 'unknown';
-  is_locked: boolean;
-  last_operation?: {
-    action: string;
-    timestamp: string;
-    success: boolean;
-  };
+  id: string;
+  state: 'open' | 'closed' | 'unknown' | 'error';
+  lock_state: 'locked' | 'unlocked' | 'unknown' | 'error';
+  relay_pin: number;
+  last_command?: string;
+  hardware_available?: boolean;
+  dev_mode?: boolean;
+  error?: string;
 }
 
 export interface DoorCommandApiResponse {

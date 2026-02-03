@@ -40,8 +40,9 @@ describe('Door Hooks Integration', () => {
       });
 
       expect(result.current.data).toMatchObject({
-        state: 'locked',
-        is_locked: true,
+        id: 'door-1',
+        state: 'closed',
+        lockState: 'locked',
       });
     });
 

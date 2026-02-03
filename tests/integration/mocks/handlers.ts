@@ -79,13 +79,11 @@ export const mockData = {
     },
   ],
   door: {
-    state: 'locked' as const,
-    is_locked: true,
-    last_operation: {
-      action: 'lock',
-      timestamp: new Date().toISOString(),
-      success: true,
-    },
+    id: 'door-1',
+    state: 'closed' as const,
+    lock_state: 'locked' as const,
+    relay_pin: 17,
+    last_command: 'close',
   },
   logs: [
     { id: '1', timestamp: new Date().toISOString(), level: 'info' as const, message: 'System started', source: 'main' },
@@ -137,8 +135,7 @@ export function createHandlers(overrides?: Partial<typeof mockData>) {
       return HttpResponse.json({ success: true });
     }),
 
-    // System endpoints
-    // NOTE: V1 envelope is unwrapped by proxy, so we return data directly
+    // System endpoints (legacy paths)
     http.get(`${BASE_URL}/system/info`, async () => {
       await delay(50);
       return HttpResponse.json(data.system);
@@ -150,6 +147,17 @@ export function createHandlers(overrides?: Partial<typeof mockData>) {
         status: 'healthy',
         version: '1.2.0',
         uptime: 86400,
+      });
+    }),
+
+    // System V1 endpoint (used by systemApi via v1Get)
+    http.get(`${BASE_URL}/v1/system/info`, async () => {
+      await delay(50);
+      return HttpResponse.json({
+        success: true,
+        data: data.system,
+        correlation_id: `corr-${Date.now()}`,
+        timestamp: new Date().toISOString(),
       });
     }),
 
@@ -179,7 +187,7 @@ export function createHandlers(overrides?: Partial<typeof mockData>) {
       });
     }),
 
-    // Door endpoints
+    // Door endpoints (legacy paths for backward compat)
     http.get(`${BASE_URL}/door/status`, async () => {
       await delay(50);
       return HttpResponse.json<DoorStatusApiResponse>(data.door);
@@ -214,6 +222,65 @@ export function createHandlers(overrides?: Partial<typeof mockData>) {
           success: true,
         },
       ]);
+    }),
+
+    // Door V1 endpoints (used by doorApi via v1Get/v1Post)
+    http.get(`${BASE_URL}/v1/door/status`, async () => {
+      await delay(50);
+      return HttpResponse.json({
+        success: true,
+        data: data.door,
+        correlation_id: `corr-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      });
+    }),
+
+    http.post(`${BASE_URL}/v1/door/open`, async () => {
+      await delay(150);
+      return HttpResponse.json({
+        success: true,
+        data: {
+          success: true,
+          message: 'Door opened',
+          door_state: 'unlocked',
+        },
+        correlation_id: `corr-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      });
+    }),
+
+    http.post(`${BASE_URL}/v1/door/close`, async () => {
+      await delay(150);
+      return HttpResponse.json({
+        success: true,
+        data: {
+          success: true,
+          message: 'Door closed',
+          door_state: 'locked',
+        },
+        correlation_id: `corr-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      });
+    }),
+
+    http.get(`${BASE_URL}/v1/door/history`, async () => {
+      await delay(75);
+      return HttpResponse.json({
+        success: true,
+        data: {
+          history: [
+            {
+              id: '1',
+              action: 'open',
+              timestamp: new Date().toISOString(),
+              duration_ms: 5000,
+              success: true,
+            },
+          ],
+        },
+        correlation_id: `corr-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      });
     }),
 
     // Logs endpoints
@@ -274,18 +341,18 @@ export const errorHandlers = {
     );
   }),
 
-  systemError: http.get(`${BASE_URL}/system/info`, async () => {
+  systemError: http.get(`${BASE_URL}/v1/system/info`, async () => {
     await delay(50);
     return HttpResponse.json(
-      { success: false, error: 'System info unavailable' },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'System info unavailable' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
       { status: 500 }
     );
   }),
 
-  doorUnavailable: http.get(`${BASE_URL}/door/status`, async () => {
+  doorUnavailable: http.get(`${BASE_URL}/v1/door/status`, async () => {
     await delay(50);
     return HttpResponse.json(
-      { success: false, error: 'Door API not available' },
+      { success: false, error: { code: 'NOT_FOUND', message: 'Door API not available' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
       { status: 404 }
     );
   }),
@@ -745,5 +812,28 @@ export const v1ErrorHandlers = {
 // Default V1 handlers export
 export const v1Handlers = createV1Handlers();
 
-// Combined handlers (legacy + V1)
-export const allHandlers = [...handlers, ...v1Handlers];
+// ============================================================================
+// Diagnostics Handlers (Feature 038)
+// ============================================================================
+
+import {
+  createDiagnosticsHandlers,
+  diagnosticsHandlers,
+  diagnosticsErrorHandlers,
+} from '../../mocks/handlers/diagnostics';
+
+export { createDiagnosticsHandlers, diagnosticsHandlers, diagnosticsErrorHandlers };
+
+// ============================================================================
+// Camera Diagnostics Handlers (Feature 042)
+// ============================================================================
+
+import {
+  cameraDiagnosticsHandlers,
+  allCameraDiagnosticsHandlers,
+} from '../../mocks/handlers/camera-diagnostics';
+
+export { cameraDiagnosticsHandlers, allCameraDiagnosticsHandlers };
+
+// Combined handlers (legacy + V1 + diagnostics + camera diagnostics)
+export const allHandlers = [...handlers, ...v1Handlers, ...diagnosticsHandlers, ...cameraDiagnosticsHandlers];
