@@ -22,10 +22,13 @@ describe('Partial API Failures (T049)', () => {
   it('should handle system info failure while health check succeeds', async () => {
     const { http, HttpResponse } = await import('msw');
 
-    // System info fails, health check succeeds
+    // System info fails (V1 path), health check succeeds (legacy path)
     server.use(
-      http.get('/api/system/info', async () => {
-        return HttpResponse.json({ error: 'System unavailable' }, { status: 503 });
+      http.get('/api/v1/system/info', async () => {
+        return HttpResponse.json(
+          { success: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'System unavailable' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
+          { status: 503 }
+        );
       }),
       http.get('/api/health', async () => {
         return HttpResponse.json({ status: 'healthy', version: '1.2.0', uptime: 86400 });
@@ -60,31 +63,49 @@ describe('Partial API Failures (T049)', () => {
 
   it('should allow independent retries for system status', async () => {
     const { http, HttpResponse } = await import('msw');
+    const { QueryClient } = await import('@tanstack/react-query');
     let requestCount = 0;
 
-    // Fail first 2 requests, then succeed
-    // NOTE: V1 envelope is unwrapped by proxy, so return data directly
+    // Fail first 2 requests, then succeed (V1 envelope format)
     server.use(
-      http.get('/api/system/info', async () => {
+      http.get('/api/v1/system/info', async () => {
         requestCount++;
         if (requestCount < 3) {
-          return HttpResponse.json({ error: 'Temporary error' }, { status: 503 });
+          return HttpResponse.json(
+            { success: false, error: { code: 'TEMPORARY_ERROR', message: 'Temporary error' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
+            { status: 503 }
+          );
         }
         return HttpResponse.json({
+          success: true,
+          data: {
+            timestamp: new Date().toISOString(),
+            cpu: { usage_percent: 35, core_count: 4, per_core: [40, 30, 35, 35] },
+            memory: { used_mb: 1024, total_mb: 2048, used_percent: 50, available_mb: 1024 },
+            disk: { used_gb: 15, total_gb: 32, used_percent: 46.9, path: '/' },
+            temperature_celsius: 52,
+            uptime: 86400_000_000_000,
+            load_average: { load_1: 0.8, load_5: 0.5, load_15: 0.3 },
+            overall_status: 'healthy',
+          },
+          correlation_id: `corr-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          cpu: { usage_percent: 35, core_count: 4, per_core: [40, 30, 35, 35] },
-          memory: { used_mb: 1024, total_mb: 2048, used_percent: 50, available_mb: 1024 },
-          disk: { used_gb: 15, total_gb: 32, used_percent: 46.9, path: '/' },
-          temperature_celsius: 52,
-          uptime: 86400_000_000_000,
-          load_average: { load_1: 0.8, load_5: 0.5, load_15: 0.3 },
-          overall_status: 'healthy',
         });
       })
     );
 
-    const queryClient = createTestQueryClient();
-    const wrapper = createWrapper(queryClient);
+    // Need retry enabled for this test
+    const retryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: 3,
+          retryDelay: 100,
+          gcTime: Infinity,
+          staleTime: Infinity,
+        },
+      },
+    });
+    const wrapper = createWrapper(retryClient);
 
     const { result } = renderHook(() => useSystemStatus(true, 0), { wrapper });
 
@@ -97,27 +118,35 @@ describe('Partial API Failures (T049)', () => {
     );
 
     expect(requestCount).toBeGreaterThanOrEqual(3);
-  });
+  }, 20000);
 
   it('should preserve stale data during refetch failures', async () => {
     const { http, HttpResponse } = await import('msw');
     let shouldFail = false;
 
-    // NOTE: V1 envelope is unwrapped by proxy, so return data directly
+    // V1 envelope format for system info
     server.use(
-      http.get('/api/system/info', async () => {
+      http.get('/api/v1/system/info', async () => {
         if (shouldFail) {
-          return HttpResponse.json({ error: 'Server error' }, { status: 500 });
+          return HttpResponse.json(
+            { success: false, error: { code: 'INTERNAL_ERROR', message: 'Server error' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
+            { status: 500 }
+          );
         }
         return HttpResponse.json({
+          success: true,
+          data: {
+            timestamp: new Date().toISOString(),
+            cpu: { usage_percent: 35, core_count: 4, per_core: [40, 30, 35, 35] },
+            memory: { used_mb: 1024, total_mb: 2048, used_percent: 50, available_mb: 1024 },
+            disk: { used_gb: 15, total_gb: 32, used_percent: 46.9, path: '/' },
+            temperature_celsius: 52,
+            uptime: 86400_000_000_000,
+            load_average: { load_1: 0.8, load_5: 0.5, load_15: 0.3 },
+            overall_status: 'healthy',
+          },
+          correlation_id: `corr-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          cpu: { usage_percent: 35, core_count: 4, per_core: [40, 30, 35, 35] },
-          memory: { used_mb: 1024, total_mb: 2048, used_percent: 50, available_mb: 1024 },
-          disk: { used_gb: 15, total_gb: 32, used_percent: 46.9, path: '/' },
-          temperature_celsius: 52,
-          uptime: 86400_000_000_000,
-          load_average: { load_1: 0.8, load_5: 0.5, load_15: 0.3 },
-          overall_status: 'healthy',
         });
       })
     );

@@ -21,21 +21,25 @@ import {
   useSessionHistory,
   recoveryKeys,
 } from '@/application/hooks/useRecoverableSessions';
-import * as sessionRecoveryApi from '@/infrastructure/api/session-recovery';
+import * as sessionsModule from '@/infrastructure/api/sessions';
 import type { BatchProvisioningSession } from '@/domain/types/provisioning';
 
 // ============================================================================
 // Mocks
 // ============================================================================
 
-vi.mock('@/infrastructure/api/session-recovery', () => ({
-  sessionRecoveryApi: {
-    getRecoverableSessions: vi.fn(),
-    resumeSession: vi.fn(),
-    discardSession: vi.fn(),
-    getSessionHistory: vi.fn(),
-  },
-}));
+vi.mock('@/infrastructure/api/sessions', async (importOriginal) => {
+  const original = await importOriginal<typeof sessionsModule>();
+  return {
+    ...original,
+    sessionRecoveryApi: {
+      getRecoverableSessions: vi.fn(),
+      resumeSession: vi.fn(),
+      discardSession: vi.fn(),
+      getSessionHistory: vi.fn(),
+    },
+  };
+});
 
 // ============================================================================
 // Test Setup
@@ -111,7 +115,7 @@ describe('useRecoverableSessions', () => {
 
   describe('Fetching Recoverable Sessions', () => {
     it('should fetch recoverable sessions successfully', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
         data: { sessions: [mockSession1, mockSession2] },
         status: 200,
         correlationId: 'test-123',
@@ -132,7 +136,7 @@ describe('useRecoverableSessions', () => {
     });
 
     it('should return empty list when no recoverable sessions', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
         data: { sessions: [] },
         status: 200,
         correlationId: 'test-123',
@@ -152,7 +156,7 @@ describe('useRecoverableSessions', () => {
     });
 
     it('should sort sessions by updated_at descending', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
         data: { sessions: [mockSession2, mockSession1] }, // Out of order
         status: 200,
         correlationId: 'test-123',
@@ -172,7 +176,7 @@ describe('useRecoverableSessions', () => {
     });
 
     it('should return most recent session', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
         data: { sessions: [mockSession1, mockSession2] },
         status: 200,
         correlationId: 'test-123',
@@ -190,7 +194,7 @@ describe('useRecoverableSessions', () => {
     });
 
     it('should handle fetch error', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockRejectedValue(
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockRejectedValue(
         new Error('Network error')
       );
 
@@ -214,7 +218,7 @@ describe('useRecoverableSessions', () => {
 
       // Should not be loading since query is disabled
       expect(result.current.isLoading).toBe(false);
-      expect(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).not.toHaveBeenCalled();
+      expect(sessionsModule.sessionRecoveryApi.getRecoverableSessions).not.toHaveBeenCalled();
     });
   });
 
@@ -225,12 +229,12 @@ describe('useRecoverableSessions', () => {
   describe('Recovery Mutations', () => {
     describe('resumeSession', () => {
       it('should resume a session successfully', async () => {
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+        vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
           data: { sessions: [mockSession1] },
           status: 200,
           correlationId: 'test-123',
         });
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.resumeSession).mockResolvedValue({
+        vi.mocked(sessionsModule.sessionRecoveryApi.resumeSession).mockResolvedValue({
           data: {
             session: { ...mockSession1, state: 'active' },
             devices: [],
@@ -247,11 +251,11 @@ describe('useRecoverableSessions', () => {
           await result.current.resumeSession.mutateAsync('sess_001');
         });
 
-        expect(sessionRecoveryApi.sessionRecoveryApi.resumeSession).toHaveBeenCalledWith('sess_001');
+        expect(sessionsModule.sessionRecoveryApi.resumeSession).toHaveBeenCalledWith('sess_001');
       });
 
       it('should handle resume error', async () => {
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.resumeSession).mockRejectedValue(
+        vi.mocked(sessionsModule.sessionRecoveryApi.resumeSession).mockRejectedValue(
           new Error('Session expired')
         );
 
@@ -274,12 +278,12 @@ describe('useRecoverableSessions', () => {
 
     describe('discardSession', () => {
       it('should discard a session successfully', async () => {
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+        vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
           data: { sessions: [mockSession1] },
           status: 200,
           correlationId: 'test-123',
         });
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.discardSession).mockResolvedValue({
+        vi.mocked(sessionsModule.sessionRecoveryApi.discardSession).mockResolvedValue({
           data: { message: 'Session discarded' },
           status: 200,
           correlationId: 'test-456',
@@ -293,16 +297,16 @@ describe('useRecoverableSessions', () => {
           await result.current.discardSession.mutateAsync('sess_001');
         });
 
-        expect(sessionRecoveryApi.sessionRecoveryApi.discardSession).toHaveBeenCalledWith('sess_001');
+        expect(sessionsModule.sessionRecoveryApi.discardSession).toHaveBeenCalledWith('sess_001');
       });
 
       it('should optimistically remove session from list', async () => {
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+        vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
           data: { sessions: [mockSession1, mockSession2] },
           status: 200,
           correlationId: 'test-123',
         });
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.discardSession).mockImplementation(
+        vi.mocked(sessionsModule.sessionRecoveryApi.discardSession).mockImplementation(
           () => new Promise((resolve) => setTimeout(() => resolve({
             data: { message: 'Discarded' },
             status: 200,
@@ -337,7 +341,7 @@ describe('useRecoverableSessions', () => {
     describe('isAnyPending', () => {
       it('should track pending state', async () => {
         let resolveResume: (value: unknown) => void;
-        vi.mocked(sessionRecoveryApi.sessionRecoveryApi.resumeSession).mockImplementation(
+        vi.mocked(sessionsModule.sessionRecoveryApi.resumeSession).mockImplementation(
           () => new Promise((resolve) => {
             resolveResume = resolve;
           })
@@ -381,7 +385,7 @@ describe('useRecoverableSessions', () => {
 
   describe('useSessionHistory', () => {
     it('should fetch session history', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getSessionHistory).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getSessionHistory).mockResolvedValue({
         data: { sessions: [mockSession1, mockClosedSession] },
         status: 200,
         correlationId: 'test-123',
@@ -396,11 +400,11 @@ describe('useRecoverableSessions', () => {
       });
 
       expect(result.current.sessions).toHaveLength(2);
-      expect(sessionRecoveryApi.sessionRecoveryApi.getSessionHistory).toHaveBeenCalledWith(10);
+      expect(sessionsModule.sessionRecoveryApi.getSessionHistory).toHaveBeenCalledWith(10);
     });
 
     it('should respect limit option', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getSessionHistory).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getSessionHistory).mockResolvedValue({
         data: { sessions: [mockSession1] },
         status: 200,
         correlationId: 'test-123',
@@ -414,11 +418,11 @@ describe('useRecoverableSessions', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      expect(sessionRecoveryApi.sessionRecoveryApi.getSessionHistory).toHaveBeenCalledWith(5);
+      expect(sessionsModule.sessionRecoveryApi.getSessionHistory).toHaveBeenCalledWith(5);
     });
 
     it('should handle history fetch error', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getSessionHistory).mockRejectedValue(
+      vi.mocked(sessionsModule.sessionRecoveryApi.getSessionHistory).mockRejectedValue(
         new Error('Failed to fetch history')
       );
 
@@ -454,7 +458,7 @@ describe('useRecoverableSessions', () => {
 
   describe('useRecoverableSessionsWithMutations', () => {
     it('should combine query and mutations', async () => {
-      vi.mocked(sessionRecoveryApi.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
+      vi.mocked(sessionsModule.sessionRecoveryApi.getRecoverableSessions).mockResolvedValue({
         data: { sessions: [mockSession1] },
         status: 200,
         correlationId: 'test-123',

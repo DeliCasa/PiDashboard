@@ -11,7 +11,6 @@ import type {
   CameraDiagnostics,
   CaptureResult,
   RebootResult,
-  CameraListResponse,
   CameraErrorCode,
 } from '@/infrastructure/api/v1-cameras-schemas';
 
@@ -141,9 +140,12 @@ export function createV1CamerasHandlers(overrides?: Partial<CameraMockState>) {
     // GET /api/v1/cameras - List all cameras
     http.get(BASE_URL, async () => {
       await delay(100);
-      return HttpResponse.json<CameraListResponse>({
-        cameras: state.cameras,
-        count: state.cameras.length,
+      return HttpResponse.json({
+        success: true,
+        data: {
+          cameras: state.cameras,
+          count: state.cameras.length,
+        },
       });
     }),
 
@@ -327,9 +329,12 @@ export const v1CamerasErrorHandlers = {
   /** Returns empty camera list */
   emptyCameras: http.get(BASE_URL, async () => {
     await delay(50);
-    return HttpResponse.json<CameraListResponse>({
-      cameras: [],
-      count: 0,
+    return HttpResponse.json({
+      success: true,
+      data: {
+        cameras: [],
+        count: 0,
+      },
     });
   }),
 

@@ -119,6 +119,7 @@ describe('Config Partial API Failures (T051)', () => {
 
   it('should recover from config fetch failure on retry', async () => {
     const { http, HttpResponse } = await import('msw');
+    const { QueryClient } = await import('@tanstack/react-query');
     let requestCount = 0;
 
     server.use(
@@ -139,8 +140,18 @@ describe('Config Partial API Failures (T051)', () => {
       })
     );
 
-    const queryClient = createTestQueryClient();
-    const wrapper = createWrapper(queryClient);
+    // Need retry enabled for this test
+    const retryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: 3,
+          retryDelay: 100,
+          gcTime: Infinity,
+          staleTime: Infinity,
+        },
+      },
+    });
+    const wrapper = createWrapper(retryClient);
 
     const { result } = renderHook(() => useConfig(true), { wrapper });
 
@@ -154,7 +165,7 @@ describe('Config Partial API Failures (T051)', () => {
 
     expect(requestCount).toBeGreaterThanOrEqual(3);
     expect(result.current.data).toBeInstanceOf(Array);
-  });
+  }, 20000);
 
   it('should preserve config data during transient update failures', async () => {
     const { http, HttpResponse } = await import('msw');

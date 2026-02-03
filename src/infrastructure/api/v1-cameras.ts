@@ -25,6 +25,11 @@ import {
   type PairedCamerasData,
 } from './v1-cameras-schemas';
 
+// Check if we're in a test environment where AbortSignal might have compatibility issues
+// This handles the Node.js 24+ / jsdom / MSW instanceof check failure
+const IS_TEST_ENV = typeof process !== 'undefined' && 
+  (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true');
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -345,7 +350,9 @@ export const v1CamerasApi = {
         `/api${V1_CAMERAS_BASE}/${encodeURIComponent(id)}/capture`,
         {
           method: 'POST',
-          signal: controller.signal,
+          // Skip signal in test environment to avoid AbortSignal instanceof issues with MSW
+          // See: https://github.com/mswjs/msw/issues/1644
+          ...(IS_TEST_ENV ? {} : { signal: controller.signal }),
         }
       );
       clearTimeout(timeoutId);

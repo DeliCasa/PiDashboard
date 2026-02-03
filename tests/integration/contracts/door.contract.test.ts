@@ -20,10 +20,11 @@ import {
  * Valid mock data matching actual PiOrchestrator responses
  */
 const validDoorStatus = {
+  id: 'door-1',
   state: 'closed' as const,
-  lock_state: 'locked' as const,
-  last_command: 'close',
-  last_command_time: '2026-01-07T12:00:00Z',
+  lockState: 'locked' as const,
+  relayPin: 17,
+  lastCommand: 'close',
 };
 
 const validDoorOpenRequest = {
@@ -51,22 +52,23 @@ const validDoorOperation = {
 const statusVariants = {
   closedLocked: validDoorStatus,
   openUnlocked: {
+    id: 'door-2',
     state: 'open' as const,
-    lock_state: 'unlocked' as const,
-    last_command: 'open',
-    last_command_time: '2026-01-07T12:05:00Z',
+    lockState: 'unlocked' as const,
+    relayPin: 17,
+    lastCommand: 'open',
   },
   unknown: {
+    id: 'door-3',
     state: 'unknown' as const,
-    lock_state: 'unknown' as const,
+    lockState: 'unknown' as const,
+    relayPin: 17,
   },
   error: {
+    id: 'door-4',
     state: 'error' as const,
-    lock_state: 'error' as const,
-    error: 'Sensor malfunction',
-  },
-  minimal: {
-    state: 'closed' as const,
+    lockState: 'error' as const,
+    relayPin: 17,
   },
 };
 
@@ -138,20 +140,20 @@ describe('Door API Contracts', () => {
     });
 
     it('requires state field', () => {
-      const invalid = { lock_state: 'locked' };
+      const invalid = { id: 'door-x', lockState: 'locked', relayPin: 17 };
       const result = DoorStatusSchema.safeParse(invalid);
       expect(result.success).toBe(false);
     });
 
     it('accepts status without optional fields', () => {
-      const minimal = { state: 'closed' };
+      const minimal = { id: 'door-m', state: 'closed', lockState: 'locked', relayPin: 17 };
       const result = DoorStatusSchema.safeParse(minimal);
       expect(result.success).toBe(true);
     });
 
-    it('accepts status with error message', () => {
-      const withError = { state: 'error', error: 'Connection lost' };
-      const result = DoorStatusSchema.safeParse(withError);
+    it('accepts status with lastCommand', () => {
+      const withCommand = { id: 'door-c', state: 'error', lockState: 'error', relayPin: 17, lastCommand: 'close' };
+      const result = DoorStatusSchema.safeParse(withCommand);
       expect(result.success).toBe(true);
     });
   });

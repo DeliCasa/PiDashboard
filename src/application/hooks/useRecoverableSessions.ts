@@ -13,7 +13,7 @@ import type {
   RecoverableSessionsData,
   SessionData,
 } from '@/domain/types/provisioning';
-import { sessionRecoveryApi } from '@/infrastructure/api/session-recovery';
+import { sessionRecoveryApi } from '@/infrastructure/api/sessions';
 import { V1ApiError } from '@/infrastructure/api/errors';
 
 // ============================================================================

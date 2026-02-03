@@ -1,0 +1,333 @@
+# Camera Diagnostics API Contract
+# Feature: 042-diagnostics-integration
+# Version: 1.0.0
+#
+# This contract defines the expected API responses from PiOrchestrator
+# for camera diagnostics endpoints.
+
+openapi: 3.1.0
+info:
+  title: PiOrchestrator Camera Diagnostics API
+  version: 1.0.0
+  description: Camera diagnostics, evidence capture, and session management
+
+servers:
+  - url: http://localhost:8082
+    description: Local PiOrchestrator
+
+paths:
+  /api/v1/cameras/{camera_id}/diagnostics:
+    get:
+      operationId: getCameraDiagnostics
+      summary: Get camera diagnostics
+      description: Returns detailed diagnostic information for a specific camera
+      parameters:
+        - name: camera_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^espcam-[0-9a-f]{6}$'
+          example: espcam-b0f7f1
+      responses:
+        '200':
+          description: Diagnostics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraDiagnosticsResponse'
+        '404':
+          description: Camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Camera offline or unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/cameras/{camera_id}/evidence:
+    post:
+      operationId: captureEvidence
+      summary: Capture evidence image
+      description: Triggers an evidence capture from the specified camera
+      parameters:
+        - name: camera_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^espcam-[0-9a-f]{6}$'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  description: Optional session to associate capture with
+      responses:
+        '200':
+          description: Evidence captured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapturedEvidenceResponse'
+        '404':
+          description: Camera not found
+        '503':
+          description: Camera offline or capture failed
+
+  /api/v1/sessions/{session_id}:
+    get:
+      operationId: getSessionDetail
+      summary: Get session details
+      description: Returns detailed information about a capture session
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetailResponse'
+        '404':
+          description: Session not found
+
+  /api/dashboard/cameras/diagnostics:
+    get:
+      operationId: listAllCameraDiagnostics
+      summary: List diagnostics for all cameras (legacy)
+      description: Returns diagnostics for all registered cameras
+      responses:
+        '200':
+          description: Diagnostics list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CameraDiagnostics'
+
+components:
+  schemas:
+    CameraStatus:
+      type: string
+      enum:
+        - online
+        - offline
+        - error
+        - rebooting
+        - discovered
+        - pairing
+        - connecting
+
+    ConnectionQuality:
+      type: string
+      enum:
+        - excellent
+        - good
+        - fair
+        - poor
+
+    CameraHealth:
+      type: object
+      required:
+        - heap
+        - wifi_rssi
+        - uptime
+      properties:
+        heap:
+          type: integer
+          minimum: 0
+          description: Free heap memory in bytes
+          example: 127700
+        wifi_rssi:
+          type: integer
+          maximum: 0
+          minimum: -100
+          description: WiFi signal strength in dBm
+          example: -47
+        uptime:
+          type: integer
+          minimum: 0
+          description: Uptime in seconds
+          example: 3600
+
+    DiagnosticsDetail:
+      type: object
+      required:
+        - connection_quality
+        - error_count
+      properties:
+        connection_quality:
+          $ref: '#/components/schemas/ConnectionQuality'
+        error_count:
+          type: integer
+          minimum: 0
+        last_error:
+          type: string
+        last_error_time:
+          type: string
+          format: date-time
+        firmware_version:
+          type: string
+          example: "1.2.3"
+        resolution:
+          type: string
+          example: "1280x720"
+        frame_rate:
+          type: number
+          example: 25.0
+        avg_capture_time_ms:
+          type: number
+          example: 150.5
+
+    CameraDiagnostics:
+      type: object
+      required:
+        - camera_id
+        - name
+        - status
+        - last_seen
+      properties:
+        camera_id:
+          type: string
+          pattern: '^espcam-[0-9a-f]{6}$'
+          example: espcam-b0f7f1
+        device_id:
+          type: string
+          description: Alias for camera_id (legacy compatibility)
+        name:
+          type: string
+          example: Kitchen Camera
+        status:
+          $ref: '#/components/schemas/CameraStatus'
+        last_seen:
+          type: string
+          format: date-time
+        health:
+          $ref: '#/components/schemas/CameraHealth'
+        ip_address:
+          type: string
+          format: ipv4
+          example: "192.168.1.100"
+        mac_address:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+          example: "B0:F7:F1:00:00:01"
+        diagnostics:
+          $ref: '#/components/schemas/DiagnosticsDetail'
+
+    CameraDiagnosticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/CameraDiagnostics'
+
+    CapturedEvidence:
+      type: object
+      required:
+        - id
+        - camera_id
+        - session_id
+        - captured_at
+        - image_base64
+      properties:
+        id:
+          type: string
+        camera_id:
+          type: string
+        session_id:
+          type: string
+        captured_at:
+          type: string
+          format: date-time
+        image_base64:
+          type: string
+          description: Base64 encoded JPEG image
+        thumbnail_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+
+    CapturedEvidenceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/CapturedEvidence'
+
+    SessionStatus:
+      type: string
+      enum:
+        - active
+        - completed
+        - cancelled
+
+    SessionDetail:
+      type: object
+      required:
+        - id
+        - started_at
+        - status
+        - capture_count
+      properties:
+        id:
+          type: string
+        delivery_id:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/SessionStatus'
+        capture_count:
+          type: integer
+          minimum: 0
+        cameras:
+          type: array
+          items:
+            type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapturedEvidence'
+
+    SessionDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/SessionDetail'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object

@@ -13,6 +13,7 @@ import {
   FileText,
   Network,
   Radio,
+  Stethoscope,
 } from "lucide-react";
 
 // Presentation layer components (hexagonal architecture)
@@ -26,6 +27,7 @@ import { ConfigSection } from "@/presentation/components/config/ConfigSection";
 import { NetworkSection } from "@/presentation/components/network/NetworkSection";
 import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndicator";
 import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
+import { DiagnosticsSection } from "@/presentation/components/diagnostics/DiagnosticsSection";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
 // 030-dashboard-recovery: Error boundary to catch uncaught exceptions
 import { ErrorBoundary } from "@/presentation/components/common/ErrorBoundary";
@@ -101,6 +103,10 @@ function Dashboard() {
             <TabsTrigger value="config" className="gap-2">
               <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Config</span>
+            </TabsTrigger>
+            <TabsTrigger value="diagnostics" className="gap-2" data-testid="tab-diagnostics">
+              <Stethoscope className="h-4 w-4" />
+              <span className="hidden sm:inline">DEV</span>
             </TabsTrigger>
           </TabsList>
 
@@ -180,6 +186,13 @@ function Dashboard() {
           <TabsContent value="config">
             <ErrorBoundary>
               <ConfigSection />
+            </ErrorBoundary>
+          </TabsContent>
+
+          {/* DEV Diagnostics Tab - 038-dev-observability-panels */}
+          <TabsContent value="diagnostics">
+            <ErrorBoundary>
+              <DiagnosticsSection />
             </ErrorBoundary>
           </TabsContent>
         </Tabs>

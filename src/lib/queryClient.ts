@@ -112,6 +112,18 @@ export const queryKeys = {
   autoOnboardStatus: () => [...queryKeys.autoOnboard, 'status'] as const,
   autoOnboardEvents: (filters?: { mac?: string; since?: string; limit?: number; offset?: number }) =>
     [...queryKeys.autoOnboard, 'events', filters] as const,
+
+  // Diagnostics (038-dev-observability-panels)
+  diagnostics: ['diagnostics'] as const,
+  diagnosticsHealth: () => [...queryKeys.diagnostics, 'health'] as const,
+  diagnosticsServiceHealth: (serviceName: string) =>
+    [...queryKeys.diagnostics, 'health', serviceName] as const,
+  diagnosticsSessions: (filters?: { status?: string }) =>
+    [...queryKeys.diagnostics, 'sessions', filters] as const,
+  diagnosticsSessionById: (sessionId: string) =>
+    [...queryKeys.diagnostics, 'sessions', sessionId] as const,
+  diagnosticsEvidence: (sessionId: string) =>
+    [...queryKeys.diagnostics, 'evidence', sessionId] as const,
 } as const;
 
 /**
@@ -127,5 +139,6 @@ export const invalidateQueries = {
   config: () => queryClient.invalidateQueries({ queryKey: queryKeys.config }),
   network: () => queryClient.invalidateQueries({ queryKey: queryKeys.network }),
   autoOnboard: () => queryClient.invalidateQueries({ queryKey: queryKeys.autoOnboard }),
+  diagnostics: () => queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics }),
   all: () => queryClient.invalidateQueries(),
 };

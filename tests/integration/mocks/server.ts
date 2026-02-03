@@ -4,10 +4,10 @@
  */
 
 import { setupServer } from 'msw/node';
-import { handlers } from './handlers';
+import { allHandlers, handlers } from './handlers';
 
-// Create the server instance with default handlers
-export const server = setupServer(...handlers);
+// Create the server instance with all handlers (legacy + V1 + diagnostics)
+export const server = setupServer(...allHandlers);
 
 // Export for direct use in tests
-export { handlers };
+export { handlers, allHandlers };

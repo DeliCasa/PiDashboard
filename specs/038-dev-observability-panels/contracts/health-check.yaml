@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: DEV Diagnostics - Health Check API
+  description: |
+    Health check endpoints for DEV observability panels.
+    Consumed from BridgeServer and PiOrchestrator.
+  version: 1.0.0
+
+paths:
+  /health/ready:
+    get:
+      operationId: getBridgeServerHealth
+      summary: BridgeServer readiness check
+      description: |
+        Returns BridgeServer health status including database and storage checks.
+        Used for DEV diagnostics panel.
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeServerHealthResponse'
+              example:
+                status: healthy
+                timestamp: '2026-01-25T15:30:00Z'
+                checks:
+                  database:
+                    status: healthy
+                  storage:
+                    status: healthy
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeServerHealthResponse'
+              example:
+                status: not_ready
+                timestamp: '2026-01-25T15:30:00Z'
+                checks:
+                  database:
+                    status: healthy
+                  storage:
+                    status: error
+                    message: MinIO connection timeout
+
+  /health/storage:
+    get:
+      operationId: getMinioHealth
+      summary: MinIO storage health check
+      description: |
+        Returns MinIO storage health status via BridgeServer proxy.
+        Checks bucket accessibility and storage connectivity.
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Storage is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageHealthResponse'
+              example:
+                status: healthy
+                timestamp: '2026-01-25T15:30:00Z'
+                buckets:
+                  - name: delicasa-images
+                    accessible: true
+        '503':
+          description: Storage is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageHealthResponse'
+              example:
+                status: unhealthy
+                timestamp: '2026-01-25T15:30:00Z'
+                error: Connection refused
+
+  /api/system/info:
+    get:
+      operationId: getPiOrchestratorHealth
+      summary: PiOrchestrator system information
+      description: |
+        Returns PiOrchestrator system metrics.
+        Existing endpoint, used to derive health status.
+      tags:
+        - Health
+      responses:
+        '200':
+          description: System info retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfoResponse'
+              example:
+                cpu_percent: 45.2
+                memory_percent: 68.1
+                disk_percent: 35.4
+                temperature_celsius: 52.3
+                uptime_seconds: 86400
+        '500':
+          description: System error
+        '503':
+          description: Service unavailable
+
+components:
+  schemas:
+    BridgeServerHealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, not_ready, unhealthy]
+          description: Overall health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        checks:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CheckResult'
+          description: Individual check results
+
+    CheckResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, error]
+        message:
+          type: string
+          description: Error or status message
+
+    StorageHealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              accessible:
+                type: boolean
+        error:
+          type: string
+          description: Error message if unhealthy
+
+    SystemInfoResponse:
+      type: object
+      required:
+        - cpu_percent
+        - memory_percent
+        - disk_percent
+        - uptime_seconds
+      properties:
+        cpu_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        memory_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        disk_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        temperature_celsius:
+          type: number
+        uptime_seconds:
+          type: integer
+          minimum: 0
