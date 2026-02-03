@@ -1,3 +1,19 @@
+---
+handoff_id: "030-dashboard-recovery"
+direction: "outgoing"
+from_repo: "PiDashboard"
+to_repo: "PiOrchestrator"
+created_at: "2026-01-12T00:00:00Z"
+status: "done"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # Feature 030: Dashboard Recovery - Handoff Document
 
 ## Summary

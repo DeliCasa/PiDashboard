@@ -1,3 +1,19 @@
+---
+handoff_id: "031-logs-v1-sse"
+direction: "incoming"
+from_repo: "PiOrchestrator"
+to_repo: "PiDashboard"
+created_at: "2026-01-13T00:00:00Z"
+status: "done"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # Handoff: Fix Dashboard Logs to Use V1 SSE Endpoint
 
 **ID**: HANDOFF-PIO-PID-20260113-001
