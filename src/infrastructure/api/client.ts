@@ -196,7 +196,8 @@ async function request<T>(
       }
 
       // Don't retry on client errors (4xx) or ApiErrors
-      if (error instanceof ApiError && error.status < 500) {
+      // Also don't retry on 503 (service unavailable) - endpoint doesn't exist
+      if (error instanceof ApiError && (error.status < 500 || error.status === 503)) {
         throw error;
       }
 
@@ -271,4 +272,18 @@ export function buildUrl(
 
   const queryString = searchParams.toString();
   return queryString ? `${endpoint}?${queryString}` : endpoint;
+}
+
+/**
+ * Check if an error indicates the feature/endpoint is unavailable.
+ * Used for graceful degradation when optional features (like WiFi) are not available.
+ *
+ * Feature: 037-api-resilience
+ *
+ * @param error - The error to check
+ * @returns true if the error indicates feature unavailability (404 or 503)
+ */
+export function isFeatureUnavailable(error: unknown): boolean {
+  if (!ApiError.isApiError(error)) return false;
+  return error.status === 404 || error.status === 503;
 }
