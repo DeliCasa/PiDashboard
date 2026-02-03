@@ -3,6 +3,7 @@
  * Feature: 006-piorchestrator-v1-api-sync
  */
 
-export { AllowlistEntryForm, isValidMac, normalizeMac } from './AllowlistEntryForm';
+export { AllowlistEntryForm } from './AllowlistEntryForm';
+export { isValidMac, normalizeMac } from '@/lib/mac-utils';
 export { AllowlistEntryCard } from './AllowlistEntryCard';
 export { AllowlistSection } from './AllowlistSection';

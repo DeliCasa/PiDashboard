@@ -14,11 +14,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  AllowlistEntryForm,
-  isValidMac,
-  normalizeMac,
-} from '@/presentation/components/allowlist/AllowlistEntryForm';
+import { AllowlistEntryForm } from '@/presentation/components/allowlist/AllowlistEntryForm';
+import { isValidMac, normalizeMac } from '@/lib/mac-utils';
 
 // ============================================================================
 // Test Setup
