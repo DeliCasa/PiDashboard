@@ -1,3 +1,19 @@
+---
+handoff_id: "028-api-compat-complete"
+direction: "incoming"
+from_repo: "PiOrchestrator"
+to_repo: "PiDashboard"
+created_at: "2026-01-11T00:00:00Z"
+status: "done"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # Handoff: PiOrchestrator API Compatibility Fix Complete
 
 **From**: PiOrchestrator Team

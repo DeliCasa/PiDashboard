@@ -1,10 +1,10 @@
 ---
-handoff_id: "NNN-slug"
+handoff_id: "000-template-example"
 direction: outgoing
 from_repo: PiDashboard
 to_repo: PiOrchestrator
 created_at: "YYYY-MM-DDTHH:MM:SSZ"
-status: new
+status: done
 related_prs: []
 related_commits: []
 requires:

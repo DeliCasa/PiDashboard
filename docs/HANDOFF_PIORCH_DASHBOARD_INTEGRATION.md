@@ -1,3 +1,19 @@
+---
+handoff_id: "027-piorchestrator-integration"
+direction: "incoming"
+from_repo: "PiOrchestrator"
+to_repo: "PiDashboard"
+created_at: "2026-01-11T00:00:00Z"
+status: "acknowledged"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # PiOrchestrator to PiDashboard Integration Handoff
 
 **Copy this document into PiDashboard repository**

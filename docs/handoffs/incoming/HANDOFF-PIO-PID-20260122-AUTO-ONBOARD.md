@@ -1,3 +1,19 @@
+---
+handoff_id: "035-auto-onboard-api"
+direction: "incoming"
+from_repo: "PiOrchestrator"
+to_repo: "PiDashboard"
+created_at: "2026-01-22T00:00:00Z"
+status: "acknowledged"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # Handoff: Auto-Onboard ESP-CAM API (DEV MODE)
 
 **ID**: HANDOFF-PIO-PID-20260122-002

@@ -1,3 +1,19 @@
+---
+handoff_id: "029-route-normalization"
+direction: "outgoing"
+from_repo: "PiDashboard"
+to_repo: "PiOrchestrator"
+created_at: "2026-01-12T00:00:00Z"
+status: "new"
+related_prs: []
+related_commits: []
+requires: []
+acceptance: []
+verification: []
+risks: []
+notes: ""
+---
+
 # Handoff: Route Structure Normalization (029)
 
 **From**: PiDashboard
