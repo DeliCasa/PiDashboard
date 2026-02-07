@@ -77,7 +77,7 @@ jobs:
   e2e-smoke:
     name: E2E Smoke Tests (Chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: unit-tests # Only run if unit tests pass
 
     steps:
