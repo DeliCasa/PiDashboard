@@ -291,6 +291,33 @@ npm run test:e2e            # Run E2E tests with Playwright
 npm run test:all            # Run all tests (unit + E2E)
 ```
 
+### Test Resource Constraints (MANDATORY)
+
+**Tests MUST NOT consume all available system resources.** Both Vitest and Playwright are configured to use at most **half of available CPU cores** to prevent system unresponsiveness.
+
+| Test Runner | Default Workers | Override Env Var |
+|-------------|-----------------|------------------|
+| Vitest | 50% of CPUs (min 1) | `VITEST_MAX_WORKERS=N` |
+| Playwright | 50% of CPUs (min 1) | `PLAYWRIGHT_WORKERS=N` |
+
+**Rules for AI agents and automated tooling:**
+- NEVER run tests with unlimited parallelism
+- PREFER single-threaded execution (`VITEST_MAX_WORKERS=1`) when debugging
+- Use `--maxWorkers=1` or similar flags when spawning test subprocesses
+- On CI, tests run with 1 worker for reproducibility
+
+**Override examples:**
+```bash
+# Single-threaded (safest, slowest)
+VITEST_MAX_WORKERS=1 npm test
+PLAYWRIGHT_WORKERS=1 npm run test:e2e
+
+# Explicitly set worker count
+VITEST_MAX_WORKERS=4 npm test
+```
+
+**Rationale:** Uncontrolled test parallelism can freeze the system, corrupt test results, and cause flaky failures. Resource constraints ensure stable, reproducible test runs.
+
 ### Test Structure (Feature 005)
 
 ```
@@ -428,6 +455,7 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - Tailscale Funnel URLs are public - don't expose sensitive endpoints
 - The dashboard proxies to port 8082 (config UI), not 8081 (main API)
 - Run `npm test` before committing to ensure tests pass
+- **Tests MUST NOT consume all system resources** - use `VITEST_MAX_WORKERS=1` for single-threaded tests
 
 ## Active Technologies
 - TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI (001-api-compat-integration)
@@ -451,6 +479,8 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (mock fixtures are TypeScript files, handoff docs are Markdown) (040-test-reliability-hardening)
 - N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation) (041-handoff-normalization)
 - Markdown files with YAML frontmatter, `.handoff-state.json` (auto-regenerated) (041-handoff-normalization)
+- N/A (API-driven, PiOrchestrator backend handles persistence) (043-container-identity-ui)
+- N/A (API-driven, PiOrchestrator/BridgeServer backends handle persistence) (044-evidence-ci-remediation)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -465,9 +495,9 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
-- 042-diagnostics-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
-- 041-handoff-normalization: Added N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation)
-- 041-handoff-normalization: Added N/A (Markdown file edits only; sentinel runs via TypeScript ~5.9.3 + tsx) + gray-matter (YAML frontmatter parsing), Zod (schema validation)
+- 044-evidence-ci-remediation: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+- 044-evidence-ci-remediation: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
+- 044-evidence-ci-remediation: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
   - `isFeatureUnavailable()` helper for 404/503 graceful degradation
   - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
   - Camera resilience tests: loading, success, empty, error, network failure

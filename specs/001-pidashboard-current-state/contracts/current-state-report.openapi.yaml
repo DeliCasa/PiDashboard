@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: PiDashboard Current State Report
+  version: 1.0.0
+  description: Documentation-only contract for reporting UI scope, dependencies, and CI status.
+paths:
+  /reports/pidashboard/current-state:
+    get:
+      summary: Get current state report
+      responses:
+        "200":
+          description: Current state report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentStateReport"
+components:
+  schemas:
+    CurrentStateReport:
+      type: object
+      required: [scope, dependencies, ci_status, blockers]
+      properties:
+        scope:
+          type: string
+        dependencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndpointDependency"
+        ci_status:
+          type: array
+          items:
+            $ref: "#/components/schemas/QualityCheckResult"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Blocker"
+    EndpointDependency:
+      type: object
+      required: [owner_service, method, path, purpose, status]
+      properties:
+        owner_service:
+          type: string
+          enum: [PiOrchestrator, BridgeServer]
+        method:
+          type: string
+        path:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+          enum: [required, optional, fallback]
+    QualityCheckResult:
+      type: object
+      required: [command, status]
+      properties:
+        command:
+          type: string
+        status:
+          type: string
+          enum: [pass, fail, not_run]
+        notes:
+          type: string
+    Blocker:
+      type: object
+      required: [summary, impacted_features]
+      properties:
+        summary:
+          type: string
+        impacted_features:
+          type: array
+          items:
+            type: string

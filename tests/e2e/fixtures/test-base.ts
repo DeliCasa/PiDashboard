@@ -75,6 +75,9 @@ export const test = base.extend<PiDashboardFixtures>({
     const optionalEndpointPatterns = [
       '/api/wifi/',
       '/wifi/',
+      '/api/v1/cameras',
+      '/api/v1/containers',
+      '/api/dashboard/diagnostics',
     ];
 
     // Check if error is from an optional endpoint returning 404/503
@@ -367,13 +370,97 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
-  // Mock cameras endpoint
+  // Mock cameras endpoint (legacy /api/cameras)
   await page.route('**/api/cameras', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         cameras: [],
+      }),
+    });
+  });
+
+  // Mock legacy dashboard cameras (fallback for V1 cameras API)
+  await page.route('**/api/dashboard/cameras', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        cameras: [],
+        count: 0,
+        success: true,
+      }),
+    });
+  });
+  await page.route('**/api/dashboard/cameras/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  // Mock V1 Cameras API (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/v1/cameras', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { cameras: [] },
+        correlation_id: 'test-default',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 Containers API (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/v1/containers', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { containers: [], total: 0 },
+        correlation_id: 'test-default',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock Diagnostics endpoints (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/dashboard/diagnostics/bridgeserver', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        checks: {},
+      }),
+    });
+  });
+
+  await page.route('**/api/dashboard/diagnostics/minio', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        buckets: {},
+      }),
+    });
+  });
+
+  await page.route('**/api/dashboard/diagnostics/sessions*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { sessions: [] },
       }),
     });
   });

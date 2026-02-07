@@ -1,0 +1,404 @@
+openapi: 3.0.3
+info:
+  title: PiOrchestrator Containers API
+  description: |
+    V1 Containers API for managing container-camera assignments.
+    Part of Feature 043: Container Identity Model UI.
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: PiOrchestrator API (proxied via Vite in development)
+
+tags:
+  - name: containers
+    description: Container CRUD operations
+  - name: assignments
+    description: Camera-to-container assignments
+
+paths:
+  /containers:
+    get:
+      tags: [containers]
+      summary: List all containers
+      description: Returns all containers with their camera assignments
+      operationId: listContainers
+      responses:
+        '200':
+          description: List of containers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerListResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [containers]
+      summary: Create a new container
+      description: Creates a new container with optional label and description
+      operationId: createContainer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContainerRequest'
+      responses:
+        '201':
+          description: Container created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /containers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Container ID (opaque string)
+        schema:
+          type: string
+
+    get:
+      tags: [containers]
+      summary: Get container by ID
+      operationId: getContainer
+      responses:
+        '200':
+          description: Container details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags: [containers]
+      summary: Update container
+      description: Update container label and/or description
+      operationId: updateContainer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContainerRequest'
+      responses:
+        '200':
+          description: Container updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [containers]
+      summary: Delete container
+      description: Delete container (must be empty - no cameras assigned)
+      operationId: deleteContainer
+      responses:
+        '204':
+          description: Container deleted
+        '400':
+          description: Container has cameras assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /containers/{id}/cameras:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Container ID
+        schema:
+          type: string
+
+    post:
+      tags: [assignments]
+      summary: Assign camera to container
+      operationId: assignCamera
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignCameraRequest'
+      responses:
+        '201':
+          description: Camera assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '400':
+          description: Position occupied or camera already assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Container or camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /containers/{id}/cameras/{deviceId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Container ID
+        schema:
+          type: string
+      - name: deviceId
+        in: path
+        required: true
+        description: Camera device ID
+        schema:
+          type: string
+
+    delete:
+      tags: [assignments]
+      summary: Unassign camera from container
+      operationId: unassignCamera
+      responses:
+        '204':
+          description: Camera unassigned
+        '404':
+          description: Container or camera not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    # Core entities
+    Container:
+      type: object
+      required: [id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          description: Opaque container ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        label:
+          type: string
+          maxLength: 100
+          description: Human-readable label
+          example: "Kitchen Fridge"
+        description:
+          type: string
+          maxLength: 500
+          description: Admin notes
+          example: "Main refrigerator in kitchen"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-04T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-04T12:00:00Z"
+
+    ContainerDetail:
+      allOf:
+        - $ref: '#/components/schemas/Container'
+        - type: object
+          required: [cameras, camera_count, online_count]
+          properties:
+            cameras:
+              type: array
+              maxItems: 4
+              items:
+                $ref: '#/components/schemas/CameraAssignment'
+            camera_count:
+              type: integer
+              minimum: 0
+              maximum: 4
+            online_count:
+              type: integer
+              minimum: 0
+              maximum: 4
+
+    CameraAssignment:
+      type: object
+      required: [device_id, position, assigned_at]
+      properties:
+        device_id:
+          type: string
+          description: Camera device ID (MAC address)
+          example: "AA:BB:CC:DD:EE:FF"
+        position:
+          type: integer
+          enum: [1, 2, 3, 4]
+          description: Position in 2x2 grid
+        assigned_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/CameraStatus'
+        name:
+          type: string
+          description: Denormalized camera name
+          example: "Front Camera"
+
+    CameraStatus:
+      type: string
+      enum:
+        - online
+        - offline
+        - error
+        - rebooting
+        - discovered
+        - pairing
+        - connecting
+
+    # Request schemas
+    CreateContainerRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    UpdateContainerRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    AssignCameraRequest:
+      type: object
+      required: [device_id, position]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+        position:
+          type: integer
+          enum: [1, 2, 3, 4]
+
+    # Response envelopes
+    ContainerListResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            containers:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContainerDetail'
+            total:
+              type: integer
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+
+    ContainerResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ContainerDetail'
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+
+    AssignmentResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/CameraAssignment'
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: '#/components/schemas/ApiError'
+        timestamp:
+          type: string
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - CONTAINER_NOT_FOUND
+            - CONTAINER_HAS_CAMERAS
+            - POSITION_OCCUPIED
+            - CAMERA_ALREADY_ASSIGNED
+            - INVALID_POSITION
+            - VALIDATION_FAILED
+            - INTERNAL_ERROR
+        message:
+          type: string
+        retryable:
+          type: boolean
+          default: false

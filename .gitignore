@@ -40,3 +40,6 @@ result
 
 # Handoff Sentinel state
 .handoff-state.json
+
+# Claude session files
+session-*.md

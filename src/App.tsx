@@ -14,6 +14,7 @@ import {
   Network,
   Radio,
   Stethoscope,
+  Package,
 } from "lucide-react";
 
 // Presentation layer components (hexagonal architecture)
@@ -28,6 +29,7 @@ import { NetworkSection } from "@/presentation/components/network/NetworkSection
 import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndicator";
 import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
 import { DiagnosticsSection } from "@/presentation/components/diagnostics/DiagnosticsSection";
+import { ContainerSection } from "@/presentation/components/containers/ContainerSection";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
 // 030-dashboard-recovery: Error boundary to catch uncaught exceptions
 import { ErrorBoundary } from "@/presentation/components/common/ErrorBoundary";
@@ -87,6 +89,10 @@ function Dashboard() {
             <TabsTrigger value="cameras" className="gap-2">
               <Camera className="h-4 w-4" />
               <span className="hidden sm:inline">Cameras</span>
+            </TabsTrigger>
+            <TabsTrigger value="containers" className="gap-2" data-testid="tab-containers">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Containers</span>
             </TabsTrigger>
             <TabsTrigger value="door" className="gap-2">
               <DoorOpen className="h-4 w-4" />
@@ -158,6 +164,13 @@ function Dashboard() {
           <TabsContent value="cameras">
             <ErrorBoundary>
               <CameraSection />
+            </ErrorBoundary>
+          </TabsContent>
+
+          {/* Containers Tab - 043-container-management */}
+          <TabsContent value="containers">
+            <ErrorBoundary>
+              <ContainerSection />
             </ErrorBoundary>
           </TabsContent>
 

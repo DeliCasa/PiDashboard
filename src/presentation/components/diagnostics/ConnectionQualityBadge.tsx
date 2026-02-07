@@ -8,10 +8,8 @@
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import {
-  type ConnectionQuality,
-  DEFAULT_CONNECTION_QUALITY_THRESHOLDS,
-} from '@/domain/types/camera-diagnostics';
+import { getConnectionQuality } from '@/lib/connection-quality';
+import type { ConnectionQuality } from '@/domain/types/camera-diagnostics';
 import { Wifi, WifiOff } from 'lucide-react';
 
 interface ConnectionQualityBadgeProps {
@@ -23,18 +21,6 @@ interface ConnectionQualityBadgeProps {
   showRssi?: boolean;
   /** Additional CSS classes */
   className?: string;
-}
-
-/**
- * Get connection quality from RSSI value
- */
-export function getConnectionQuality(rssi: number): ConnectionQuality {
-  const { excellent, good, fair } = DEFAULT_CONNECTION_QUALITY_THRESHOLDS;
-
-  if (rssi >= excellent) return 'excellent';
-  if (rssi >= good) return 'good';
-  if (rssi >= fair) return 'fair';
-  return 'poor';
 }
 
 /**

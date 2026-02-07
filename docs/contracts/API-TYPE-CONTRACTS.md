@@ -1,7 +1,7 @@
 # PiOrchestrator ↔ PiDashboard API Type Contracts
 
-**Version**: 1.0.0
-**Last Updated**: 2026-01-22
+**Version**: 1.1.0
+**Last Updated**: 2026-02-04
 **Status**: ENFORCED
 
 This document defines the **canonical type contracts** between PiOrchestrator (Go backend) and PiDashboard (TypeScript frontend). Both projects MUST adhere to these contracts.
@@ -237,8 +237,165 @@ interface OnboardingAuditEntry {
 
 ---
 
+## Container Management Types
+
+### CameraPosition
+
+**Type**: Union literal `1 | 2 | 3 | 4`
+
+Represents valid camera positions within a container (2x2 grid).
+
+**TypeScript Definition** (PiDashboard):
+```typescript
+export const CameraPositionSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+]);
+export type CameraPosition = z.infer<typeof CameraPositionSchema>;
+```
+
+---
+
+### Container Entity
+
+**Source**: PiOrchestrator (expected)
+**Endpoint**: `GET /api/v1/containers`
+
+**TypeScript Schema** (PiDashboard):
+```typescript
+export const ContainerSchema = z.object({
+  id: z.string().min(1),           // Opaque container ID (UUID-like)
+  label: z.string().max(100).optional(),
+  description: z.string().max(500).optional(),
+  created_at: z.string(),          // ISO 8601 timestamp
+  updated_at: z.string(),          // ISO 8601 timestamp
+});
+export type Container = z.infer<typeof ContainerSchema>;
+```
+
+---
+
+### CameraAssignment Entity
+
+Represents a camera assigned to a container position.
+
+**TypeScript Schema** (PiDashboard):
+```typescript
+export const CameraAssignmentSchema = z.object({
+  device_id: z.string().min(1),    // Camera device ID (MAC address)
+  position: CameraPositionSchema,   // Position 1-4
+  assigned_at: z.string(),         // ISO 8601 timestamp
+  status: CameraStatusSchema.optional(),  // Denormalized camera status
+  name: z.string().optional(),     // Denormalized camera name
+});
+export type CameraAssignment = z.infer<typeof CameraAssignmentSchema>;
+```
+
+---
+
+### ContainerDetail Entity
+
+Container with full camera assignment details.
+
+**TypeScript Schema** (PiDashboard):
+```typescript
+export const ContainerDetailSchema = ContainerSchema.extend({
+  cameras: z.array(CameraAssignmentSchema),
+  camera_count: z.number().min(0).max(4),
+  online_count: z.number().min(0).max(4),
+});
+export type ContainerDetail = z.infer<typeof ContainerDetailSchema>;
+```
+
+---
+
+### Container API Endpoints
+
+| Endpoint | Method | Request | Response |
+|----------|--------|---------|----------|
+| `/api/v1/containers` | GET | - | `ApiResponse<ContainerListData>` |
+| `/api/v1/containers` | POST | `CreateContainerRequest` | `ApiResponse<ContainerDetail>` |
+| `/api/v1/containers/:id` | GET | - | `ApiResponse<ContainerDetail>` |
+| `/api/v1/containers/:id` | PATCH | `UpdateContainerRequest` | `ApiResponse<ContainerDetail>` |
+| `/api/v1/containers/:id` | DELETE | - | `ApiResponse<void>` |
+| `/api/v1/containers/:id/cameras` | POST | `AssignCameraRequest` | `ApiResponse<CameraAssignment>` |
+| `/api/v1/containers/:id/cameras/:device_id` | DELETE | - | `ApiResponse<void>` |
+| `/api/v1/cameras/unassigned` | GET | - | `ApiResponse<CameraListData>` |
+
+---
+
+### Container Request Schemas
+
+**CreateContainerRequest**:
+```typescript
+export const CreateContainerRequestSchema = z.object({
+  label: z.string().max(100).optional(),
+  description: z.string().max(500).optional(),
+});
+```
+
+**UpdateContainerRequest**:
+```typescript
+export const UpdateContainerRequestSchema = z.object({
+  label: z.string().max(100).optional(),
+  description: z.string().max(500).optional(),
+});
+```
+
+**AssignCameraRequest**:
+```typescript
+export const AssignCameraRequestSchema = z.object({
+  device_id: z.string().min(1),
+  position: CameraPositionSchema,
+});
+```
+
+---
+
+### Container Response Envelopes
+
+**ContainerListData**:
+```typescript
+export const ContainerListDataSchema = z.object({
+  containers: z.array(ContainerDetailSchema),
+  total: z.number().nonnegative(),
+});
+```
+
+---
+
+### Container Error Codes
+
+| Code | Description | Retryable |
+|------|-------------|-----------|
+| `CONTAINER_NOT_FOUND` | Container ID does not exist | No |
+| `CONTAINER_HAS_CAMERAS` | Cannot delete container with assigned cameras | No |
+| `POSITION_OCCUPIED` | Target position already has a camera | No |
+| `CAMERA_ALREADY_ASSIGNED` | Camera assigned to another container | No |
+| `INVALID_POSITION` | Position must be 1-4 | No |
+| `VALIDATION_FAILED` | Request validation error | No |
+| `INTERNAL_ERROR` | Server error | Yes |
+
+**TypeScript Definition**:
+```typescript
+export const ContainerErrorCodeSchema = z.enum([
+  'CONTAINER_NOT_FOUND',
+  'CONTAINER_HAS_CAMERAS',
+  'POSITION_OCCUPIED',
+  'CAMERA_ALREADY_ASSIGNED',
+  'INVALID_POSITION',
+  'VALIDATION_FAILED',
+  'INTERNAL_ERROR',
+]);
+```
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-02-04 | Added Container Management API types |
 | 1.0.0 | 2026-01-22 | Initial contract documentation |

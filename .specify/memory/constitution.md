@@ -1,20 +1,19 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.0.0 → 1.1.0 (MINOR: API contract subsections added)
+  Version change: 1.1.0 → 1.2.0 (MINOR: Resource constraints for tests added)
 
   Modified principles:
-    - II. Contract-First API: Added subsections II.A through II.D
-    - III. Test Discipline: Added subsections III.A and III.B
+    - III. Test Discipline: Added Resource Constraints (CRITICAL) subsection
+
   Added sections:
-    - II.A Zod Schema Conventions (naming, field mapping, optional rules)
-    - II.B Enum Synchronization (PiOrchestrator-first rule)
-    - II.C API Integration Workflow (7-step checklist)
-    - II.D Breaking Change Response (5-step procedure)
-    - III.A Contract Testing Requirements (test structure, mock validation)
-    - III.B Pre-Commit Test Commands (quick validation, full validation)
-    - Appendix A: Quick Start for New Developers (architecture, gotchas, checklist)
-  Removed sections: N/A
+    - III. Test Discipline > Resource Constraints (CRITICAL): Mandates test parallelism limits
+
+  Config files updated:
+    ✅ vitest.config.ts - Added maxConcurrency and poolOptions with 50% CPU limit
+    ✅ playwright.config.ts - Added maxWorkers with 50% CPU limit for local runs
+    ✅ CLAUDE.md - Added Test Resource Constraints section and Important Notes bullet
+    ✅ .claude/commands/speckit.implement.md - Added resource constraint rule
 
   Templates requiring updates:
     ✅ .specify/templates/plan-template.md - Constitution Check section compatible
@@ -275,8 +274,16 @@ Testing is mandatory for all features with minimum coverage gates:
 - Tests MUST NOT use `any` type—test data must be typed
 - MSW handlers in `tests/mocks/` MUST match real API contracts
 
+**Resource Constraints (CRITICAL):**
+- Tests MUST NOT consume all available system resources
+- Test parallelism MUST be limited to at most 50% of available CPU cores
+- AI agents and automated tooling MUST use single-threaded or limited parallelism
+- Override via: `VITEST_MAX_WORKERS=N` (Vitest) or `PLAYWRIGHT_WORKERS=N` (Playwright)
+- Default configuration enforces resource limits automatically
+
 **Rationale:** Tests are documentation that runs. They catch regressions, validate contracts, and
-enable safe refactoring. Untested code is legacy code.
+enable safe refactoring. Untested code is legacy code. Resource constraints prevent system freezes
+and ensure reproducible test results.
 
 #### III.A Contract Testing Requirements
 
@@ -530,7 +537,7 @@ const { error } = useQuery({
 - Feature specifications: `specs/[###-feature]/spec.md`
 - Implementation plans: `specs/[###-feature]/plan.md`
 
-**Version**: 1.1.0 | **Ratified**: 2025-01-20 | **Last Amended**: 2026-01-22
+**Version**: 1.2.0 | **Ratified**: 2025-01-20 | **Last Amended**: 2026-02-04
 
 ---
 

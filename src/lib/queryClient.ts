@@ -124,6 +124,11 @@ export const queryKeys = {
     [...queryKeys.diagnostics, 'sessions', sessionId] as const,
   diagnosticsEvidence: (sessionId: string) =>
     [...queryKeys.diagnostics, 'evidence', sessionId] as const,
+
+  // Containers (043-container-management)
+  containers: ['containers'] as const,
+  containerList: () => [...queryKeys.containers, 'list'] as const,
+  containerById: (id: string) => [...queryKeys.containers, id] as const,
 } as const;
 
 /**
@@ -140,5 +145,6 @@ export const invalidateQueries = {
   network: () => queryClient.invalidateQueries({ queryKey: queryKeys.network }),
   autoOnboard: () => queryClient.invalidateQueries({ queryKey: queryKeys.autoOnboard }),
   diagnostics: () => queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics }),
+  containers: () => queryClient.invalidateQueries({ queryKey: queryKeys.containers }),
   all: () => queryClient.invalidateQueries(),
 };
