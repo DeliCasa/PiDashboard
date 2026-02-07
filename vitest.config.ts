@@ -1,6 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import os from 'os';
+
+/**
+ * Resource Constraint: Limit test parallelism to avoid consuming all system resources.
+ * Uses single-threaded execution by default to ensure stable, reproducible tests.
+ * Set VITEST_MAX_WORKERS env var to override (e.g., VITEST_MAX_WORKERS=4).
+ */
+const maxWorkers = process.env.VITEST_MAX_WORKERS
+  ? parseInt(process.env.VITEST_MAX_WORKERS, 10)
+  : Math.max(1, Math.floor(os.cpus().length / 2)); // Default: half of available CPUs, minimum 1
 
 export default defineConfig({
   plugins: [react()],
@@ -8,6 +18,19 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup/vitest.setup.ts'],
+    // Resource constraints: limit parallelism to avoid consuming all system resources
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: false, // Allow parallel threads but limited
+        maxThreads: maxWorkers,
+        minThreads: 1,
+      },
+    },
+    // Limit concurrent test files
+    maxConcurrency: maxWorkers,
+    // Isolate tests to prevent memory leaks
+    isolate: true,
     include: [
       'tests/unit/**/*.test.ts',
       'tests/component/**/*.test.tsx',

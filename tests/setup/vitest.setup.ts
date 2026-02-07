@@ -19,6 +19,14 @@ Object.defineProperty(window, 'ResizeObserver', {
   value: ResizeObserverMock,
 });
 
+// Mock pointer capture methods for Radix UI Select (not available in jsdom)
+Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(false);
+Element.prototype.setPointerCapture = vi.fn();
+Element.prototype.releasePointerCapture = vi.fn();
+
+// Mock scrollIntoView for Radix UI Select (not available in jsdom)
+Element.prototype.scrollIntoView = vi.fn();
+
 // Mock localStorage for Zustand persistence
 const localStorageMock = {
   getItem: vi.fn(),

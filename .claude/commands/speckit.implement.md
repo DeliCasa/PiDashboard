@@ -116,6 +116,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Core development**: Implement models, services, CLI commands, endpoints
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation
+   - **RESOURCE CONSTRAINT (MANDATORY)**: When running tests, ALWAYS use limited parallelism:
+     - For Vitest: `VITEST_MAX_WORKERS=1 npm test` or rely on default config (50% of CPUs)
+     - For Playwright: `PLAYWRIGHT_WORKERS=1 npm run test:e2e` or rely on default config
+     - NEVER run tests with unlimited parallelism - this can freeze the system
 
 8. Progress tracking and error handling:
    - Report progress after each completed task

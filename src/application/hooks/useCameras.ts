@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { v1CamerasApi } from '@/infrastructure/api/v1-cameras';
 import { queryKeys } from '@/lib/queryClient';
 import { useVisibilityAwareInterval } from './useDocumentVisibility';
+import { isFeatureUnavailable } from '@/infrastructure/api/client';
 
 /** Default polling interval for camera list (10 seconds per spec) */
 const CAMERA_POLLING_INTERVAL = 10_000;
@@ -35,7 +36,16 @@ export function useCameras(enabled = true, pollingInterval = CAMERA_POLLING_INTE
     queryKey: queryKeys.cameraList(),
     queryFn: v1CamerasApi.list,
     enabled,
-    refetchInterval,
+    refetchInterval: (query) => {
+      if (query.state.error && isFeatureUnavailable(query.state.error)) {
+        return false;
+      }
+      return refetchInterval;
+    },
+    retry: (failureCount, error) => {
+      if (isFeatureUnavailable(error)) return false;
+      return failureCount < 2;
+    },
     placeholderData: (previousData) => previousData,
   });
 }

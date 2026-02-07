@@ -3,8 +3,10 @@
  * Modal for displaying detailed camera information
  *
  * Feature: 034-esp-camera-integration (T033-T038)
+ * Feature: 044-evidence-ci-remediation (T023-T028) - Evidence capture button
  */
 
+import { useState } from 'react';
 import {
   Camera,
   Wifi,
@@ -16,6 +18,8 @@ import {
   XCircle,
   RefreshCw,
   ArrowLeft,
+  ImagePlus,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -29,7 +33,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useCamera } from '@/application/hooks/useCamera';
+import { useEvidenceCapture } from '@/application/hooks/useEvidence';
 import type { Camera as CameraType, CameraStatus } from '@/domain/types/entities';
+import { toast } from 'sonner';
 
 interface CameraDetailProps {
   cameraId: string | null;
@@ -142,9 +148,29 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
 }
 
 function CameraContent({ camera }: { camera: CameraType }) {
+  const [lastCapturedAt, setLastCapturedAt] = useState<string | null>(null);
   const status = statusConfig[camera.status];
   const StatusIcon = status.icon;
   const isOnline = camera.status === 'online';
+
+  // Evidence capture hook (T023-T028)
+  const { mutate: captureEvidence, isPending: isCapturing } = useEvidenceCapture(camera.id, {
+    onSuccess: (evidence) => {
+      setLastCapturedAt(evidence.captured_at);
+      toast.success('Evidence captured', {
+        description: `Image saved from ${camera.name}`,
+      });
+    },
+    onError: (error) => {
+      toast.error('Capture failed', {
+        description: error.message || 'Unable to capture evidence from camera',
+      });
+    },
+  });
+
+  const handleCaptureEvidence = () => {
+    captureEvidence(undefined);
+  };
 
   return (
     <div className="space-y-6" data-testid="camera-detail-content">
@@ -167,6 +193,36 @@ function CameraContent({ camera }: { camera: CameraType }) {
           {status.label}
         </Badge>
       </div>
+
+      {/* Evidence Capture Button (T025-T028) */}
+      {isOnline && (
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={handleCaptureEvidence}
+          disabled={isCapturing}
+          data-testid="capture-evidence-btn"
+        >
+          {isCapturing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Capturing...
+            </>
+          ) : (
+            <>
+              <ImagePlus className="mr-2 h-4 w-4" />
+              Capture Evidence
+            </>
+          )}
+        </Button>
+      )}
+
+      {/* Recent capture indicator */}
+      {lastCapturedAt && (
+        <p className="text-xs text-muted-foreground text-center" data-testid="last-captured-indicator">
+          Last captured: {new Date(lastCapturedAt).toLocaleTimeString()}
+        </p>
+      )}
 
       {/* Network Information */}
       <div className="rounded-lg border p-4">

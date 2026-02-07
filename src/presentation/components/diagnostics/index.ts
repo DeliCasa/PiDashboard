@@ -16,7 +16,9 @@ export { EvidencePreviewModal } from './EvidencePreviewModal';
 export {
   ConnectionQualityBadge,
   ConnectionQualityFromRssi,
-  getConnectionQuality,
 } from './ConnectionQualityBadge';
+
+// Re-export utility from lib for backwards compatibility
+export { getConnectionQuality } from '@/lib/connection-quality';
 export { DiagnosticsPanel } from './DiagnosticsPanel';
 export { DiagnosticsUnavailable } from './DiagnosticsUnavailable';

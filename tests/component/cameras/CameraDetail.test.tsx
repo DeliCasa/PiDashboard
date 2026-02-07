@@ -1,12 +1,13 @@
 /**
  * CameraDetail Component Tests
  * Feature: 034-esp-camera-integration (T039-T040)
+ * Feature: 044-evidence-ci-remediation (T029-T030) - Evidence capture tests
  *
- * Tests camera detail modal display and error states.
+ * Tests camera detail modal display, error states, and evidence capture functionality.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { CameraDetail } from '@/presentation/components/cameras/CameraDetail';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -21,10 +22,27 @@ vi.mock('@/application/hooks/useCamera', () => ({
   useCamera: vi.fn(),
 }));
 
+// Mock useEvidenceCapture hook
+vi.mock('@/application/hooks/useEvidence', () => ({
+  useEvidenceCapture: vi.fn(),
+}));
+
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 import { useCamera } from '@/application/hooks/useCamera';
+import { useEvidenceCapture } from '@/application/hooks/useEvidence';
+import { toast } from 'sonner';
 import type { Camera } from '@/domain/types/entities';
 
 const mockUseCamera = useCamera as ReturnType<typeof vi.fn>;
+const mockUseEvidenceCapture = useEvidenceCapture as ReturnType<typeof vi.fn>;
+const mockToast = toast as { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
 // Test QueryClient
 const createTestQueryClient = () =>
@@ -89,8 +107,16 @@ const mockCameraWithError: Camera = {
 };
 
 describe('CameraDetail', () => {
+  // Default mock mutate function for evidence capture
+  const mockMutate = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default mock for useEvidenceCapture - idle state
+    mockUseEvidenceCapture.mockReturnValue({
+      mutate: mockMutate,
+      isPending: false,
+    });
   });
 
   afterEach(() => {
@@ -429,6 +455,222 @@ describe('CameraDetail', () => {
 
       // Dialog content should not be visible
       expect(screen.queryByText('Camera Details')).not.toBeInTheDocument();
+    });
+  });
+
+  // T029-T030: Evidence Capture Button Tests
+  describe('Evidence Capture Button (T029-T030)', () => {
+    it('should display capture button for online cameras', () => {
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      expect(screen.getByTestId('capture-evidence-btn')).toBeInTheDocument();
+      expect(screen.getByText('Capture Evidence')).toBeInTheDocument();
+    });
+
+    it('should not display capture button for offline cameras', () => {
+      mockUseCamera.mockReturnValue({
+        data: mockOfflineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOfflineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      expect(screen.queryByTestId('capture-evidence-btn')).not.toBeInTheDocument();
+    });
+
+    it('should call mutate when capture button is clicked', () => {
+      const captureClickMock = vi.fn();
+      mockUseEvidenceCapture.mockReturnValue({
+        mutate: captureClickMock,
+        isPending: false,
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      const captureButton = screen.getByTestId('capture-evidence-btn');
+      fireEvent.click(captureButton);
+
+      expect(captureClickMock).toHaveBeenCalledTimes(1);
+      expect(captureClickMock).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should show loading state when capture is pending (T029)', () => {
+      mockUseEvidenceCapture.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: true,
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      const captureButton = screen.getByTestId('capture-evidence-btn');
+      expect(captureButton).toBeDisabled();
+      expect(screen.getByText('Capturing...')).toBeInTheDocument();
+    });
+
+    it('should be disabled during capture to prevent double-submission', () => {
+      mockUseEvidenceCapture.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: true,
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      const captureButton = screen.getByTestId('capture-evidence-btn');
+      expect(captureButton).toHaveAttribute('disabled');
+    });
+
+    it('should call toast.success on capture success (T030)', async () => {
+      let capturedOnSuccess: ((evidence: unknown) => void) | undefined;
+
+      mockUseEvidenceCapture.mockImplementation((_cameraId, options) => {
+        capturedOnSuccess = options?.onSuccess;
+        return {
+          mutate: vi.fn(),
+          isPending: false,
+        };
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      // Simulate successful capture wrapped in act
+      await act(async () => {
+        capturedOnSuccess?.({
+          id: 'evidence-123',
+          camera_id: mockOnlineCamera.id,
+          captured_at: new Date().toISOString(),
+          image_base64: 'abc123',
+        });
+      });
+
+      await waitFor(() => {
+        expect(mockToast.success).toHaveBeenCalledWith('Evidence captured', {
+          description: `Image saved from ${mockOnlineCamera.name}`,
+        });
+      });
+    });
+
+    it('should call toast.error on capture failure (T030)', async () => {
+      let capturedOnError: ((error: Error) => void) | undefined;
+
+      mockUseEvidenceCapture.mockImplementation((_cameraId, options) => {
+        capturedOnError = options?.onError;
+        return {
+          mutate: vi.fn(),
+          isPending: false,
+        };
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      // Simulate capture error
+      capturedOnError?.(new Error('Camera offline'));
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith('Capture failed', {
+          description: 'Camera offline',
+        });
+      });
+    });
+
+    it('should show last captured indicator after successful capture', async () => {
+      let capturedOnSuccess: ((evidence: unknown) => void) | undefined;
+      const captureTime = new Date().toISOString();
+
+      mockUseEvidenceCapture.mockImplementation((_cameraId, options) => {
+        capturedOnSuccess = options?.onSuccess;
+        return {
+          mutate: vi.fn(),
+          isPending: false,
+        };
+      });
+      mockUseCamera.mockReturnValue({
+        data: mockOnlineCamera,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      renderWithWrapper(
+        <CameraDetail cameraId={mockOnlineCamera.id} open={true} onOpenChange={vi.fn()} />
+      );
+
+      // Initially no last captured indicator
+      expect(screen.queryByTestId('last-captured-indicator')).not.toBeInTheDocument();
+
+      // Simulate successful capture wrapped in act
+      await act(async () => {
+        capturedOnSuccess?.({
+          id: 'evidence-123',
+          camera_id: mockOnlineCamera.id,
+          captured_at: captureTime,
+          image_base64: 'abc123',
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('last-captured-indicator')).toBeInTheDocument();
+      });
     });
   });
 });

@@ -19,8 +19,9 @@
 
           shellHook = ''
             # Playwright browser configuration for NixOS
-            # IMPORTANT: @playwright/test version in package.json must match this version
-            # Current nixpkgs playwright-driver version: 1.56.1
+            # IMPORTANT: @playwright/test version in package.json must match nixpkgs version
+            # package.json: ^1.57.0, nixpkgs-unstable provides compatible version
+            # Run `nix flake update` if version mismatch errors occur
             export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
             export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1

@@ -288,11 +288,19 @@ export function buildUrl(
  * Used for graceful degradation when optional features (like WiFi) are not available.
  *
  * Feature: 037-api-resilience
+ * Enhanced: 045-dashboard-resilience-e2e — Also checks V1ApiError with httpStatus
  *
  * @param error - The error to check
  * @returns true if the error indicates feature unavailability (404 or 503)
  */
 export function isFeatureUnavailable(error: unknown): boolean {
-  if (!ApiError.isApiError(error)) return false;
-  return error.status === 404 || error.status === 503;
+  if (ApiError.isApiError(error)) {
+    return error.status === 404 || error.status === 503;
+  }
+  // V1ApiError and other errors may carry httpStatus from the original ApiError
+  if (error instanceof Error && 'httpStatus' in error) {
+    const status = (error as Error & { httpStatus: number }).httpStatus;
+    return status === 404 || status === 503;
+  }
+  return false;
 }

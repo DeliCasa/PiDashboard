@@ -8,11 +8,21 @@
  */
 
 import { defineConfig, devices } from '@playwright/test';
+import os from 'os';
 
 /**
  * Base URL for E2E tests - can be overridden via VITE_BASE_URL env var
  */
 const baseURL = process.env.VITE_BASE_URL || 'http://localhost:5173';
+
+/**
+ * Resource Constraint: Limit test parallelism to avoid consuming all system resources.
+ * Uses at most half of available CPUs for E2E tests (minimum 1).
+ * Set PLAYWRIGHT_WORKERS env var to override.
+ */
+const maxWorkers = process.env.PLAYWRIGHT_WORKERS
+  ? parseInt(process.env.PLAYWRIGHT_WORKERS, 10)
+  : Math.max(1, Math.floor(os.cpus().length / 2));
 
 /**
  * Optional live Pi URL for smoke tests against real hardware
@@ -44,8 +54,9 @@ export default defineConfig({
   // Retry failed tests on CI only
   retries: process.env.CI ? 2 : 0,
 
-  // Limit parallel workers on CI
-  workers: process.env.CI ? 1 : undefined,
+  // Limit parallel workers to avoid consuming all system resources
+  // CI: single worker for reproducibility; Local: half of CPUs
+  workers: process.env.CI ? 1 : maxWorkers,
 
   // Reporter configuration
   reporter: [
@@ -114,8 +125,9 @@ export default defineConfig({
   ],
 
   // Web server configuration for local development
+  // Uses e2e-specific Vite config that doesn't proxy to Pi (allows route mocking)
   webServer: {
-    command: 'npm run dev',
+    command: 'npx vite --config vite.config.e2e.ts',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60000,

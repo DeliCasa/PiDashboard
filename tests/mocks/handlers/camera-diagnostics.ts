@@ -8,8 +8,6 @@
 import { http, HttpResponse, delay } from 'msw';
 import {
   mockCameraDiagnosticsResponse,
-  mockCapturedEvidenceResponse,
-  mockSessionDetailResponse,
   mockCameraDiagnosticsVariants,
   mockSessionDetailVariants,
   mockErrorResponses,
