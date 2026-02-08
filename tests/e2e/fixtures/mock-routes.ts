@@ -8,6 +8,19 @@
 import type { Page, Route } from '@playwright/test';
 
 /**
+ * Wrap data in V1 API envelope format.
+ * V1 endpoints return { success, data, correlation_id, timestamp }.
+ */
+export function wrapV1Envelope<T>(data: T, correlationId = 'test-correlation-id') {
+  return {
+    success: true as const,
+    data,
+    correlation_id: correlationId,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
  * API response types matching backend schemas (PiOrchestrator)
  */
 export interface SystemInfoResponse {
@@ -437,7 +450,7 @@ export class MockAPI {
     await this.page.route(
       '**/api/v1/door/status',
       createRouteHandler({
-        data: this.data.doorStatus,
+        data: wrapV1Envelope(this.data.doorStatus, 'test-door-status'),
         ...config,
       })
     );
@@ -1338,7 +1351,11 @@ export async function mockDoorSuccess(
   });
   await mockEndpoint(page, '**/api/v1/door/status', {
     status: 200,
-    data: doorData,
+    data: wrapV1Envelope(doorData, 'test-door-status'),
+  });
+  await mockEndpoint(page, '**/api/v1/door/history*', {
+    status: 200,
+    data: wrapV1Envelope({ history: [] }, 'test-door-history'),
   });
 }
 
@@ -1347,6 +1364,11 @@ export async function mockDoorSuccess(
  */
 export async function mockDoorError(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/door/status', {
+    status: 500,
+    error: true,
+    errorMessage: 'Door sensor not responding',
+  });
+  await mockEndpoint(page, '**/api/v1/door/status', {
     status: 500,
     error: true,
     errorMessage: 'Door sensor not responding',
@@ -1360,6 +1382,9 @@ export async function mockDoorNetworkFailure(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/door/**', {
     abort: 'connectionfailed',
   });
+  await mockEndpoint(page, '**/api/v1/door/**', {
+    abort: 'connectionfailed',
+  });
 }
 
 /**
@@ -1367,6 +1392,10 @@ export async function mockDoorNetworkFailure(page: Page): Promise<void> {
  */
 export async function mockSystemSuccess(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/system/info', {
+    status: 200,
+    data: defaultMockData.systemInfo,
+  });
+  await mockEndpoint(page, '**/api/v1/system/info', {
     status: 200,
     data: defaultMockData.systemInfo,
   });
@@ -1381,6 +1410,11 @@ export async function mockSystemError(page: Page): Promise<void> {
     error: true,
     errorMessage: 'System info unavailable',
   });
+  await mockEndpoint(page, '**/api/v1/system/info', {
+    status: 500,
+    error: true,
+    errorMessage: 'System info unavailable',
+  });
 }
 
 /**
@@ -1388,6 +1422,9 @@ export async function mockSystemError(page: Page): Promise<void> {
  */
 export async function mockSystemNetworkFailure(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/system/**', {
+    abort: 'connectionfailed',
+  });
+  await mockEndpoint(page, '**/api/v1/system/**', {
     abort: 'connectionfailed',
   });
 }

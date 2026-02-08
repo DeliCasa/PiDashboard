@@ -18,9 +18,84 @@ import {
   mockCamerasSuccess,
   mockEndpoint,
   defaultMockData,
+  wrapV1Envelope,
+  mockContainersResponses,
 } from './fixtures/mock-routes';
 
 test.describe('WiFi Graceful Degradation - US2', () => {
+  /** Apply background V1 mocks that all tests need to prevent unmocked endpoint errors */
+  async function applyBackgroundV1Mocks(page: import('@playwright/test').Page) {
+    await mockEndpoint(page, '**/api/v1/system/info', {
+      status: 200,
+      data: defaultMockData.systemInfo,
+    });
+    await mockEndpoint(page, '**/api/door/status', {
+      status: 200,
+      data: defaultMockData.doorStatus,
+    });
+    await mockEndpoint(page, '**/api/v1/door/status', {
+      status: 200,
+      data: wrapV1Envelope(defaultMockData.doorStatus, 'test-door-status'),
+    });
+    await mockEndpoint(page, '**/api/v1/door/history*', {
+      status: 200,
+      data: wrapV1Envelope({ history: [] }, 'test-door-history'),
+    });
+    await mockEndpoint(page, '**/api/v1/containers', {
+      status: 200,
+      data: mockContainersResponses.empty,
+    });
+    await mockEndpoint(page, '**/api/v1/onboarding/auto/status', {
+      status: 200,
+      data: wrapV1Envelope({ enabled: false, status: 'idle' }, 'test-auto-onboard'),
+    });
+    // Mock remaining endpoints that would otherwise produce console errors
+    await mockEndpoint(page, '**/api/dashboard/config', {
+      status: 200,
+      data: { success: true, sections: [] },
+    });
+    await mockEndpoint(page, '**/api/config', {
+      status: 200,
+      data: { success: true, sections: [] },
+    });
+    await mockEndpoint(page, '**/api/dashboard/logs', {
+      status: 200,
+      data: { count: 0, logs: [] },
+    });
+    await mockEndpoint(page, '**/api/logs/recent', {
+      status: 200,
+      data: { count: 0, logs: [] },
+    });
+    await mockEndpoint(page, '**/api/cameras', {
+      status: 200,
+      data: { cameras: [] },
+    });
+    await mockEndpoint(page, '**/api/dashboard/cameras', {
+      status: 200,
+      data: { cameras: [], count: 0, success: true },
+    });
+    await mockEndpoint(page, '**/api/devices', {
+      status: 200,
+      data: { devices: [] },
+    });
+    await mockEndpoint(page, '**/api/network/**', {
+      status: 200,
+      data: { connected: false, status: 'unavailable' },
+    });
+    await mockEndpoint(page, '**/api/dashboard/diagnostics/bridgeserver', {
+      status: 200,
+      data: { status: 'healthy', timestamp: new Date().toISOString(), checks: {} },
+    });
+    await mockEndpoint(page, '**/api/dashboard/diagnostics/minio', {
+      status: 200,
+      data: { status: 'healthy', timestamp: new Date().toISOString(), buckets: {} },
+    });
+    await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+      status: 200,
+      data: { success: true, data: { sessions: [] } },
+    });
+  }
+
   test.describe('T018: WiFi 404 with console error check', () => {
     test('no console errors when WiFi returns 404', async ({
       page,
@@ -34,6 +109,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -52,6 +128,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -78,6 +155,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -96,6 +174,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -115,6 +194,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -137,6 +217,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -155,6 +236,11 @@ test.describe('WiFi Graceful Degradation - US2', () => {
     test('no error notifications appear for WiFi 404', async ({ page }) => {
       await mockWifi404(page);
       await mockCamerasSuccess(page);
+      await mockEndpoint(page, '**/api/system/info', {
+        status: 200,
+        data: defaultMockData.systemInfo,
+      });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -170,6 +256,11 @@ test.describe('WiFi Graceful Degradation - US2', () => {
     test('no warning notifications appear for WiFi 404', async ({ page }) => {
       await mockWifi404(page);
       await mockCamerasSuccess(page);
+      await mockEndpoint(page, '**/api/system/info', {
+        status: 200,
+        data: defaultMockData.systemInfo,
+      });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -198,6 +289,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
         status: 200,
         data: defaultMockData.systemInfo,
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');
@@ -215,6 +307,10 @@ test.describe('WiFi Graceful Degradation - US2', () => {
     test('door status works when WiFi is unavailable', async ({ page }) => {
       await mockWifi404(page);
       await mockCamerasSuccess(page);
+      await mockEndpoint(page, '**/api/system/info', {
+        status: 200,
+        data: defaultMockData.systemInfo,
+      });
       await mockEndpoint(page, '**/api/door/status', {
         status: 200,
         data: {
@@ -222,6 +318,7 @@ test.describe('WiFi Graceful Degradation - US2', () => {
           lock_state: 'locked',
         },
       });
+      await applyBackgroundV1Mocks(page);
 
       await page.goto('/');
       await page.waitForLoadState('networkidle');

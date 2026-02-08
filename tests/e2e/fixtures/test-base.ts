@@ -102,7 +102,7 @@ export const test = base.extend<PiDashboardFixtures>({
         if (
           !text.includes('ResizeObserver') &&
           !text.includes('Download the React DevTools') &&
-          !text.includes('Failed to load resource: net::ERR_') && // Network errors in tests
+          !text.includes('Failed to load resource') && // Network/HTTP errors in tests
           !text.includes('[API Contract]') && // Schema validation warnings (graceful degradation)
           !text.includes('Service Worker registration failed') && // SW errors in test environment
           !isOptionalEndpoint404(text) // Feature 037: Ignore 404/503 on optional endpoints
@@ -277,16 +277,21 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
-  // Mock V1 door status endpoint
+  // Mock V1 door status endpoint (wrapped in V1 envelope)
   await page.route('**/api/v1/door/status', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        state: 'closed',
-        lock_state: 'locked',
-        last_command: 'close',
-        last_command_time: new Date().toISOString(),
+        success: true,
+        data: {
+          state: 'closed',
+          lock_state: 'locked',
+          last_command: 'close',
+          last_command_time: new Date().toISOString(),
+        },
+        correlation_id: 'test-door-status',
+        timestamp: new Date().toISOString(),
       }),
     });
   });

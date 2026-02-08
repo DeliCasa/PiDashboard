@@ -207,11 +207,15 @@ test.describe('Error Handling', () => {
   test('should display error state when API fails', async ({ page }) => {
     const mockAPI = createMockAPI(page);
     await mockAPI.mockError('**/api/system/info', 500, 'Server Error');
+    await mockAPI.mockError('**/api/v1/system/info', 500, 'Server Error');
     await mockAPI.mockWifiStatus();
     await mockAPI.mockWifiScan();
     await mockAPI.mockDoorStatus();
     await mockAPI.mockConfig();
     await mockAPI.mockLogs();
+    await mockAPI.mockV1Cameras();
+    await mockAPI.mockV1Containers();
+    await mockAPI.mockAutoOnboard();
 
     await page.goto('/');
 
@@ -223,8 +227,7 @@ test.describe('Error Handling', () => {
   test('should handle slow API responses', async ({ page }) => {
     const mockAPI = createMockAPI(page);
 
-    // Mock slow response (3 seconds) with proper PiOrchestrator format
-    await mockAPI.mockSlow('**/api/system/info', 3000, {
+    const slowSystemData = {
       success: true,
       data: {
         timestamp: new Date().toISOString(),
@@ -254,13 +257,20 @@ test.describe('Error Handling', () => {
         },
         overall_status: 'healthy',
       },
-    });
+    };
+
+    // Mock slow response (3 seconds) with proper PiOrchestrator format
+    await mockAPI.mockSlow('**/api/system/info', 3000, slowSystemData);
+    await mockAPI.mockSlow('**/api/v1/system/info', 3000, slowSystemData);
 
     await mockAPI.mockWifiStatus();
     await mockAPI.mockWifiScan();
     await mockAPI.mockDoorStatus();
     await mockAPI.mockConfig();
     await mockAPI.mockLogs();
+    await mockAPI.mockV1Cameras();
+    await mockAPI.mockV1Containers();
+    await mockAPI.mockAutoOnboard();
 
     await page.goto('/');
 

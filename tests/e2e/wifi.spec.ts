@@ -267,6 +267,9 @@ test.describe('WiFi Error States', () => {
     await mockAPI.mockDoorStatus();
     await mockAPI.mockConfig();
     await mockAPI.mockLogs();
+    await mockAPI.mockV1Cameras();
+    await mockAPI.mockV1Containers();
+    await mockAPI.mockAutoOnboard();
 
     await page.goto('/');
     await page.getByRole('tab', { name: /wifi/i }).click();
@@ -282,6 +285,9 @@ test.describe('WiFi Error States', () => {
     await mockAPI.mockDoorStatus();
     await mockAPI.mockConfig();
     await mockAPI.mockLogs();
+    await mockAPI.mockV1Cameras();
+    await mockAPI.mockV1Containers();
+    await mockAPI.mockAutoOnboard();
 
     // Mock empty network list
     await page.route('**/api/wifi/scan', async (route) => {

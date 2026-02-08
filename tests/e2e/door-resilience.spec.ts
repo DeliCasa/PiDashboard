@@ -16,6 +16,8 @@ import {
   mockCamerasSuccess,
   mockEndpoint,
   defaultMockData,
+  wrapV1Envelope,
+  mockContainersResponses,
 } from './fixtures/mock-routes';
 
 test.describe('Door Status Resilience - US3', () => {
@@ -26,9 +28,25 @@ test.describe('Door Status Resilience - US3', () => {
       status: 200,
       data: defaultMockData.systemInfo,
     });
+    await mockEndpoint(page, '**/api/v1/system/info', {
+      status: 200,
+      data: defaultMockData.systemInfo,
+    });
     await mockEndpoint(page, '**/api/wifi/status', {
       status: 200,
       data: defaultMockData.wifiStatus,
+    });
+    await mockEndpoint(page, '**/api/v1/containers', {
+      status: 200,
+      data: mockContainersResponses.empty,
+    });
+    await mockEndpoint(page, '**/api/v1/door/history*', {
+      status: 200,
+      data: wrapV1Envelope({ history: [] }, 'test-door-history'),
+    });
+    await mockEndpoint(page, '**/api/v1/onboarding/auto/status', {
+      status: 200,
+      data: wrapV1Envelope({ enabled: false, status: 'idle' }, 'test-auto-onboard'),
     });
   }
 
@@ -152,7 +170,7 @@ test.describe('Door Status Resilience - US3', () => {
     test('displays loading state during slow response', async ({ page }) => {
       await setupDoorTest(page);
 
-      // Mock slow door status response
+      // Mock slow door status response (legacy + V1)
       await mockEndpoint(page, '**/api/door/status', {
         status: 200,
         delay: 3000,
@@ -160,6 +178,14 @@ test.describe('Door Status Resilience - US3', () => {
           state: 'closed',
           lock_state: 'locked',
         },
+      });
+      await mockEndpoint(page, '**/api/v1/door/status', {
+        status: 200,
+        delay: 3000,
+        data: wrapV1Envelope({
+          state: 'closed',
+          lock_state: 'locked',
+        }, 'test-door-status'),
       });
 
       await page.goto('/');
@@ -192,6 +218,14 @@ test.describe('Door Status Resilience - US3', () => {
           lock_state: 'locked',
         },
       });
+      await mockEndpoint(page, '**/api/v1/door/status', {
+        status: 200,
+        delay: 5000,
+        data: wrapV1Envelope({
+          state: 'closed',
+          lock_state: 'locked',
+        }, 'test-door-status'),
+      });
 
       await page.goto('/');
 
@@ -222,6 +256,14 @@ test.describe('Door Status Resilience - US3', () => {
           lock_state: 'locked',
         },
       });
+      await mockEndpoint(page, '**/api/v1/door/status', {
+        status: 200,
+        delay: 1500,
+        data: wrapV1Envelope({
+          state: 'closed',
+          lock_state: 'locked',
+        }, 'test-door-status'),
+      });
 
       await page.goto('/');
 
@@ -245,6 +287,12 @@ test.describe('Door Status Resilience - US3', () => {
       await setupDoorTest(page);
 
       await mockEndpoint(page, '**/api/door/status', {
+        status: 500,
+        delay: 1000,
+        error: true,
+        errorMessage: 'Server error',
+      });
+      await mockEndpoint(page, '**/api/v1/door/status', {
         status: 500,
         delay: 1000,
         error: true,
