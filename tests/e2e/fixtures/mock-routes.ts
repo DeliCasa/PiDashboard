@@ -360,15 +360,23 @@ export class MockAPI {
       this.mockV1Containers(),
       this.mockDiagnosticsHealth(),
       this.mockSessions(),
+      this.mockAutoOnboard(),
     ]);
   }
 
   /**
-   * Mock system info endpoint
+   * Mock system info endpoint (legacy + V1)
    */
   async mockSystemInfo(config?: MockRouteConfig): Promise<void> {
     await this.page.route(
       '**/api/system/info',
+      createRouteHandler({
+        data: this.data.systemInfo,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/system/info',
       createRouteHandler({
         data: this.data.systemInfo,
         ...config,
@@ -416,13 +424,32 @@ export class MockAPI {
   }
 
   /**
-   * Mock door status endpoint
+   * Mock door status endpoint (legacy + V1)
    */
   async mockDoorStatus(config?: MockRouteConfig): Promise<void> {
     await this.page.route(
       '**/api/door/status',
       createRouteHandler({
         data: this.data.doorStatus,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/door/status',
+      createRouteHandler({
+        data: this.data.doorStatus,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/door/history*',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: { history: [] },
+          correlation_id: 'test-door-history',
+          timestamp: new Date().toISOString(),
+        },
         ...config,
       })
     );
@@ -602,6 +629,23 @@ export class MockAPI {
       '**/api/dashboard/diagnostics/minio',
       createRouteHandler({
         data: mockDiagnosticsData.minioHealthy,
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock auto-onboard status endpoint
+   * Feature: 044-evidence-ci-remediation
+   */
+  async mockAutoOnboard(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/v1/onboarding/auto/status',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: { enabled: false, status: 'idle' },
+        },
         ...config,
       })
     );
@@ -1282,14 +1326,19 @@ export async function mockDoorSuccess(
   page: Page,
   state: 'open' | 'closed' | 'locked' = 'closed'
 ): Promise<void> {
+  const doorData = {
+    state: state === 'locked' ? 'closed' : state,
+    lock_state: state === 'locked' ? 'locked' : 'unlocked',
+    last_command: state === 'locked' ? 'lock' : state,
+    last_command_time: new Date().toISOString(),
+  };
   await mockEndpoint(page, '**/api/door/status', {
     status: 200,
-    data: {
-      state: state === 'locked' ? 'closed' : state,
-      lock_state: state === 'locked' ? 'locked' : 'unlocked',
-      last_command: state === 'locked' ? 'lock' : state,
-      last_command_time: new Date().toISOString(),
-    },
+    data: doorData,
+  });
+  await mockEndpoint(page, '**/api/v1/door/status', {
+    status: 200,
+    data: doorData,
   });
 }
 

@@ -190,6 +190,45 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
+  // Mock V1 system info endpoint
+  await page.route('**/api/v1/system/info', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          timestamp: new Date().toISOString(),
+          cpu: {
+            usage_percent: 25.5,
+            core_count: 4,
+            per_core: [20, 25, 30, 27],
+          },
+          memory: {
+            used_mb: 1845,
+            total_mb: 4096,
+            used_percent: 45.2,
+            available_mb: 2251,
+          },
+          disk: {
+            used_gb: 12,
+            total_gb: 32,
+            used_percent: 37.5,
+            path: '/',
+          },
+          temperature_celsius: 42.5,
+          uptime: 86400000000000, // 1 day in nanoseconds
+          load_average: {
+            load_1: 0.5,
+            load_5: 0.4,
+            load_15: 0.3,
+          },
+          overall_status: 'healthy',
+        },
+      }),
+    });
+  });
+
   // Mock WiFi scan endpoint
   await page.route('**/api/wifi/scan', async (route) => {
     await route.fulfill({
@@ -234,6 +273,34 @@ async function applyDefaultMocks(page: Page): Promise<void> {
         lock_state: 'locked',
         last_command: 'close',
         last_command_time: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 door status endpoint
+  await page.route('**/api/v1/door/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        state: 'closed',
+        lock_state: 'locked',
+        last_command: 'close',
+        last_command_time: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 door history endpoint
+  await page.route('**/api/v1/door/history*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { history: [] },
+        correlation_id: 'test-door-history',
+        timestamp: new Date().toISOString(),
       }),
     });
   });
@@ -484,6 +551,20 @@ async function applyDefaultMocks(page: Page): Promise<void> {
       contentType: 'application/json',
       body: JSON.stringify({
         devices: [],
+      }),
+    });
+  });
+
+  // Mock V1 auto-onboard status endpoint
+  await page.route('**/api/v1/onboarding/auto/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { enabled: false, status: 'idle' },
+        correlation_id: 'test-auto-onboard',
+        timestamp: new Date().toISOString(),
       }),
     });
   });
