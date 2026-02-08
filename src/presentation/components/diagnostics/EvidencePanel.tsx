@@ -1,14 +1,22 @@
 /**
  * EvidencePanel Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
+ * Feature: 044-evidence-ci-remediation (T031-T034) - Camera filter
  *
  * Displays evidence thumbnails for a session in a grid layout.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Image, RefreshCw, AlertCircle, ImageOff } from 'lucide-react';
 import { useSessionEvidence, useInvalidateEvidence } from '@/application/hooks/useEvidence';
 import { EvidenceThumbnail } from './EvidenceThumbnail';
@@ -24,9 +32,24 @@ interface EvidencePanelProps {
 export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceCapture | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filterCameraId, setFilterCameraId] = useState<string | undefined>(undefined);
 
   const { data: evidence, isLoading, isFetching, error, refetch } = useSessionEvidence(sessionId);
   const { invalidate } = useInvalidateEvidence();
+
+  // Derive unique camera IDs from evidence for the filter dropdown
+  const cameraIds = useMemo(() => {
+    if (!evidence || evidence.length === 0) return [];
+    const ids = new Set(evidence.map((ev) => ev.camera_id));
+    return Array.from(ids).sort();
+  }, [evidence]);
+
+  // Apply client-side camera filter
+  const filteredEvidence = useMemo(() => {
+    if (!evidence) return [];
+    if (!filterCameraId) return evidence;
+    return evidence.filter((ev) => ev.camera_id === filterCameraId);
+  }, [evidence, filterCameraId]);
 
   const handleRefresh = () => {
     invalidate(sessionId);
@@ -90,6 +113,7 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
 
   // Empty state
   const isEmpty = !evidence || evidence.length === 0;
+  const isFilteredEmpty = filteredEvidence.length === 0 && !isEmpty;
 
   return (
     <>
@@ -101,19 +125,42 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
               Evidence Captures
               {!isEmpty && (
                 <span className="text-xs text-muted-foreground font-normal" data-testid="evidence-count">
-                  ({evidence.length})
+                  ({filteredEvidence.length})
                 </span>
               )}
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isFetching}
-              data-testid="refresh-evidence"
-            >
-              <RefreshCw className={cn('h-3 w-3', isFetching && 'animate-spin')} />
-            </Button>
+            <div className="flex items-center gap-1">
+              {cameraIds.length > 1 && (
+                <Select
+                  value={filterCameraId ?? 'all'}
+                  onValueChange={(val) => setFilterCameraId(val === 'all' ? undefined : val)}
+                >
+                  <SelectTrigger
+                    className="h-7 w-[140px] text-xs"
+                    data-testid="evidence-camera-filter"
+                  >
+                    <SelectValue placeholder="All cameras" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All cameras</SelectItem>
+                    {cameraIds.map((id) => (
+                      <SelectItem key={id} value={id}>
+                        {id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isFetching}
+                data-testid="refresh-evidence"
+              >
+                <RefreshCw className={cn('h-3 w-3', isFetching && 'animate-spin')} />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -122,12 +169,17 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
               <ImageOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-xs">No evidence captures yet</p>
             </div>
+          ) : isFilteredEmpty ? (
+            <div className="text-center py-4 text-muted-foreground" data-testid="evidence-filtered-empty">
+              <ImageOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No evidence from this camera</p>
+            </div>
           ) : (
             <div
               className="grid grid-cols-2 sm:grid-cols-3 gap-2"
               data-testid="evidence-grid"
             >
-              {evidence.map((ev) => (
+              {filteredEvidence.map((ev) => (
                 <EvidenceThumbnail
                   key={ev.id}
                   evidence={ev}

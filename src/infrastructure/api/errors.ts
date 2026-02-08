@@ -159,6 +159,13 @@ export const ERROR_MESSAGES: Record<ErrorCode | string, string> = {
   ONBOARD_NOT_AVAILABLE: 'Auto-onboard is not configured on this Pi.',
   ONBOARD_RATE_LIMITED: 'Too many onboarding requests. Please wait.',
   ONBOARD_INTERNAL_ERROR: 'An internal error occurred during auto-onboard.',
+
+  // Container Errors (043-container-management)
+  CONTAINER_NOT_FOUND: 'Container not found. It may have been deleted.',
+  CONTAINER_HAS_CAMERAS: 'Cannot delete container with assigned cameras.',
+  POSITION_OCCUPIED: 'Position already has a camera assigned.',
+  CAMERA_ALREADY_ASSIGNED: 'Camera is assigned to another container.',
+  INVALID_POSITION: 'Position must be between 1 and 4.',
 };
 
 /**
@@ -309,7 +316,7 @@ export class V1ApiError extends Error {
 /**
  * Error category for UI styling and handling.
  */
-export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'onboard' | 'network' | 'validation' | 'infrastructure' | 'unknown';
+export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'onboard' | 'container' | 'network' | 'validation' | 'infrastructure' | 'unknown';
 
 /**
  * Get the category of an error code for UI handling.
@@ -375,6 +382,17 @@ export function getErrorCategory(code: ErrorCode | string): ErrorCategory {
     code === 'ONBOARD_INTERNAL_ERROR'
   ) {
     return 'onboard';
+  }
+
+  // Container errors (043-container-management)
+  if (
+    code === 'CONTAINER_NOT_FOUND' ||
+    code === 'CONTAINER_HAS_CAMERAS' ||
+    code === 'POSITION_OCCUPIED' ||
+    code === 'CAMERA_ALREADY_ASSIGNED' ||
+    code === 'INVALID_POSITION'
+  ) {
+    return 'container';
   }
 
   return 'unknown';

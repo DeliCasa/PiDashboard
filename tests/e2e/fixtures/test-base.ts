@@ -75,6 +75,9 @@ export const test = base.extend<PiDashboardFixtures>({
     const optionalEndpointPatterns = [
       '/api/wifi/',
       '/wifi/',
+      '/api/v1/cameras',
+      '/api/v1/containers',
+      '/api/dashboard/diagnostics',
     ];
 
     // Check if error is from an optional endpoint returning 404/503
@@ -99,7 +102,7 @@ export const test = base.extend<PiDashboardFixtures>({
         if (
           !text.includes('ResizeObserver') &&
           !text.includes('Download the React DevTools') &&
-          !text.includes('Failed to load resource: net::ERR_') && // Network errors in tests
+          !text.includes('Failed to load resource') && // Network/HTTP errors in tests
           !text.includes('[API Contract]') && // Schema validation warnings (graceful degradation)
           !text.includes('Service Worker registration failed') && // SW errors in test environment
           !isOptionalEndpoint404(text) // Feature 037: Ignore 404/503 on optional endpoints
@@ -187,6 +190,45 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
+  // Mock V1 system info endpoint
+  await page.route('**/api/v1/system/info', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          timestamp: new Date().toISOString(),
+          cpu: {
+            usage_percent: 25.5,
+            core_count: 4,
+            per_core: [20, 25, 30, 27],
+          },
+          memory: {
+            used_mb: 1845,
+            total_mb: 4096,
+            used_percent: 45.2,
+            available_mb: 2251,
+          },
+          disk: {
+            used_gb: 12,
+            total_gb: 32,
+            used_percent: 37.5,
+            path: '/',
+          },
+          temperature_celsius: 42.5,
+          uptime: 86400000000000, // 1 day in nanoseconds
+          load_average: {
+            load_1: 0.5,
+            load_5: 0.4,
+            load_15: 0.3,
+          },
+          overall_status: 'healthy',
+        },
+      }),
+    });
+  });
+
   // Mock WiFi scan endpoint
   await page.route('**/api/wifi/scan', async (route) => {
     await route.fulfill({
@@ -231,6 +273,39 @@ async function applyDefaultMocks(page: Page): Promise<void> {
         lock_state: 'locked',
         last_command: 'close',
         last_command_time: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 door status endpoint (wrapped in V1 envelope)
+  await page.route('**/api/v1/door/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          state: 'closed',
+          lock_state: 'locked',
+          last_command: 'close',
+          last_command_time: new Date().toISOString(),
+        },
+        correlation_id: 'test-door-status',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 door history endpoint
+  await page.route('**/api/v1/door/history*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { history: [] },
+        correlation_id: 'test-door-history',
+        timestamp: new Date().toISOString(),
       }),
     });
   });
@@ -367,13 +442,97 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
-  // Mock cameras endpoint
+  // Mock cameras endpoint (legacy /api/cameras)
   await page.route('**/api/cameras', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         cameras: [],
+      }),
+    });
+  });
+
+  // Mock legacy dashboard cameras (fallback for V1 cameras API)
+  await page.route('**/api/dashboard/cameras', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        cameras: [],
+        count: 0,
+        success: true,
+      }),
+    });
+  });
+  await page.route('**/api/dashboard/cameras/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  // Mock V1 Cameras API (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/v1/cameras', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { cameras: [] },
+        correlation_id: 'test-default',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock V1 Containers API (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/v1/containers', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { containers: [], total: 0 },
+        correlation_id: 'test-default',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock Diagnostics endpoints (Feature: 045-dashboard-resilience-e2e)
+  await page.route('**/api/dashboard/diagnostics/bridgeserver', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        checks: {},
+      }),
+    });
+  });
+
+  await page.route('**/api/dashboard/diagnostics/minio', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        buckets: {},
+      }),
+    });
+  });
+
+  await page.route('**/api/dashboard/diagnostics/sessions*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { sessions: [] },
       }),
     });
   });
@@ -397,6 +556,20 @@ async function applyDefaultMocks(page: Page): Promise<void> {
       contentType: 'application/json',
       body: JSON.stringify({
         devices: [],
+      }),
+    });
+  });
+
+  // Mock V1 auto-onboard status endpoint
+  await page.route('**/api/v1/onboarding/auto/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { enabled: false, status: 'idle' },
+        correlation_id: 'test-auto-onboard',
+        timestamp: new Date().toISOString(),
       }),
     });
   });

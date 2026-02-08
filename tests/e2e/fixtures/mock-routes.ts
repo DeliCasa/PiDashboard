@@ -8,6 +8,19 @@
 import type { Page, Route } from '@playwright/test';
 
 /**
+ * Wrap data in V1 API envelope format.
+ * V1 endpoints return { success, data, correlation_id, timestamp }.
+ */
+export function wrapV1Envelope<T>(data: T, correlationId = 'test-correlation-id') {
+  return {
+    success: true as const,
+    data,
+    correlation_id: correlationId,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
  * API response types matching backend schemas (PiOrchestrator)
  */
 export interface SystemInfoResponse {
@@ -343,6 +356,7 @@ export class MockAPI {
 
   /**
    * Apply all default API mocks
+   * Feature: 045-dashboard-resilience-e2e - Extended to cover all 12 tabs
    */
   async applyAllMocks(): Promise<void> {
     await Promise.all([
@@ -355,15 +369,27 @@ export class MockAPI {
       this.mockCameras(),
       this.mockDevices(),
       this.mockNetwork(),
+      this.mockV1Cameras(),
+      this.mockV1Containers(),
+      this.mockDiagnosticsHealth(),
+      this.mockSessions(),
+      this.mockAutoOnboard(),
     ]);
   }
 
   /**
-   * Mock system info endpoint
+   * Mock system info endpoint (legacy + V1)
    */
   async mockSystemInfo(config?: MockRouteConfig): Promise<void> {
     await this.page.route(
       '**/api/system/info',
+      createRouteHandler({
+        data: this.data.systemInfo,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/system/info',
       createRouteHandler({
         data: this.data.systemInfo,
         ...config,
@@ -411,13 +437,32 @@ export class MockAPI {
   }
 
   /**
-   * Mock door status endpoint
+   * Mock door status endpoint (legacy + V1)
    */
   async mockDoorStatus(config?: MockRouteConfig): Promise<void> {
     await this.page.route(
       '**/api/door/status',
       createRouteHandler({
         data: this.data.doorStatus,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/door/status',
+      createRouteHandler({
+        data: wrapV1Envelope(this.data.doorStatus, 'test-door-status'),
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/door/history*',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: { history: [] },
+          correlation_id: 'test-door-history',
+          timestamp: new Date().toISOString(),
+        },
         ...config,
       })
     );
@@ -517,6 +562,124 @@ export class MockAPI {
       '**/api/network/**',
       createRouteHandler({
         data: { connected: false, status: 'unavailable' },
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock V1 Cameras API endpoints
+   * Feature: 045-dashboard-resilience-e2e
+   */
+  async mockV1Cameras(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/v1/cameras',
+      createRouteHandler({
+        data: mockCamerasResponses.withCameras,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/v1/cameras/*',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: mockCameraData.cameraOnline,
+          correlation_id: 'test-correlation-id',
+          timestamp: new Date().toISOString(),
+        },
+        ...config,
+      })
+    );
+    // Legacy fallback endpoint (v1CamerasApi falls back to this on V1 failure)
+    await this.page.route(
+      '**/api/dashboard/cameras',
+      createRouteHandler({
+        data: {
+          cameras: [mockCameraData.cameraOnline, mockCameraData.cameraError, mockCameraData.cameraOffline],
+          count: 3,
+          success: true,
+        },
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/dashboard/cameras/*',
+      createRouteHandler({
+        data: mockCameraData.cameraOnline,
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock V1 Containers API endpoint
+   * Feature: 045-dashboard-resilience-e2e
+   */
+  async mockV1Containers(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/v1/containers',
+      createRouteHandler({
+        data: mockContainersResponses.withContainers,
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock diagnostics health endpoints
+   * Feature: 045-dashboard-resilience-e2e
+   */
+  async mockDiagnosticsHealth(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/dashboard/diagnostics/bridgeserver',
+      createRouteHandler({
+        data: mockDiagnosticsData.bridgeServerHealthy,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/dashboard/diagnostics/minio',
+      createRouteHandler({
+        data: mockDiagnosticsData.minioHealthy,
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock auto-onboard status endpoint
+   * Feature: 044-evidence-ci-remediation
+   */
+  async mockAutoOnboard(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/v1/onboarding/auto/status',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: { enabled: false, status: 'idle' },
+        },
+        ...config,
+      })
+    );
+  }
+
+  /**
+   * Mock sessions and evidence endpoints
+   * Feature: 045-dashboard-resilience-e2e
+   */
+  async mockSessions(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/dashboard/diagnostics/sessions*',
+      createRouteHandler({
+        data: mockSessionsData.withSessions,
+        ...config,
+      })
+    );
+    await this.page.route(
+      '**/api/dashboard/diagnostics/sessions/*/evidence*',
+      createRouteHandler({
+        data: mockEvidenceData.withEvidence,
         ...config,
       })
     );
@@ -668,6 +831,277 @@ export const mockScenarios = {
     });
   },
 };
+
+// ============================================================================
+// V1 Containers API Mock Data (Feature: 045-dashboard-resilience-e2e)
+// ============================================================================
+
+/**
+ * V1 Container mock data with mixed opaque ID formats
+ * Verifies the UI doesn't assume UUID format for container IDs
+ */
+export const mockContainerData = {
+  /** Container with semantic string ID */
+  kitchenFridge: {
+    id: 'kitchen-fridge-001',
+    label: 'Kitchen Fridge',
+    description: 'Main refrigerator',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    cameras: [
+      {
+        device_id: 'AA:BB:CC:DD:EE:FF',
+        position: 1 as const,
+        assigned_at: new Date().toISOString(),
+        status: 'online',
+        name: 'Shelf Cam',
+      },
+    ],
+    camera_count: 1,
+    online_count: 1,
+  },
+  /** Container with UUID ID */
+  garageFreezer: {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    label: 'Garage Freezer',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    cameras: [],
+    camera_count: 0,
+    online_count: 0,
+  },
+  /** Container with numeric string ID */
+  numericContainer: {
+    id: '12345',
+    label: 'Storage Unit',
+    description: 'Numeric ID container',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    cameras: [],
+    camera_count: 0,
+    online_count: 0,
+  },
+};
+
+/**
+ * V1 Containers API response structures
+ */
+export const mockContainersResponses = {
+  /** Success: Multiple containers with mixed ID formats */
+  withContainers: {
+    success: true,
+    data: {
+      containers: [
+        mockContainerData.kitchenFridge,
+        mockContainerData.garageFreezer,
+        mockContainerData.numericContainer,
+      ],
+      total: 3,
+    },
+    correlation_id: 'test-containers',
+    timestamp: new Date().toISOString(),
+  },
+  /** Success: Empty list */
+  empty: {
+    success: true,
+    data: { containers: [], total: 0 },
+    correlation_id: 'test-containers-empty',
+    timestamp: new Date().toISOString(),
+  },
+};
+
+// ============================================================================
+// Diagnostics Mock Data (Feature: 045-dashboard-resilience-e2e)
+// ============================================================================
+
+/**
+ * Diagnostics health mock data matching BridgeServer health response
+ */
+export const mockDiagnosticsData = {
+  bridgeServerHealthy: {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: { status: 'healthy', message: 'Database connection active' },
+      storage: { status: 'healthy', message: 'MinIO connection established' },
+    },
+  },
+  minioHealthy: {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    buckets: {
+      'delicasa-images': {
+        exists: true,
+        accessible: true,
+        object_count: 42,
+      },
+    },
+  },
+};
+
+/**
+ * Session mock data
+ */
+export const mockSessionsData = {
+  withSessions: {
+    success: true,
+    data: {
+      sessions: [
+        {
+          id: 'sess-12345',
+          delivery_id: 'del-67890',
+          started_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          status: 'active',
+          capture_count: 5,
+          last_capture_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        },
+        {
+          id: 'sess-23456',
+          delivery_id: 'del-78901',
+          started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+          status: 'active',
+          capture_count: 3,
+          last_capture_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        },
+      ],
+    },
+  },
+  empty: {
+    success: true,
+    data: { sessions: [] },
+  },
+};
+
+/**
+ * Evidence mock data
+ */
+export const mockEvidenceData = {
+  withEvidence: {
+    success: true,
+    data: {
+      evidence: [
+        {
+          id: 'img-001',
+          session_id: 'sess-12345',
+          captured_at: new Date(Date.now() - 60 * 1000).toISOString(),
+          camera_id: 'espcam-b0f7f1',
+          thumbnail_url: 'data:image/png;base64,iVBORw0KGgo=',
+          full_url: 'data:image/png;base64,iVBORw0KGgo=',
+          expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          size_bytes: 45678,
+          content_type: 'image/jpeg',
+        },
+      ],
+    },
+  },
+};
+
+// ============================================================================
+// V1 Containers Standalone Mock Helpers (Feature: 045-dashboard-resilience-e2e)
+// ============================================================================
+
+/**
+ * Apply containers success mock
+ */
+export async function mockContainersSuccess(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers', {
+    status: 200,
+    data: mockContainersResponses.withContainers,
+  });
+}
+
+/**
+ * Apply containers empty mock
+ */
+export async function mockContainersEmpty(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers', {
+    status: 200,
+    data: mockContainersResponses.empty,
+  });
+}
+
+/**
+ * Apply containers 404 mock (feature unavailable)
+ */
+export async function mockContainers404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+  await mockEndpoint(page, '**/api/v1/containers/*', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+}
+
+/**
+ * Apply cameras 404 mock (feature unavailable)
+ */
+export async function mockCameras404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+  await mockEndpoint(page, '**/api/v1/cameras/*', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+}
+
+/**
+ * Apply cameras 503 mock (service unavailable)
+ */
+export async function mockCameras503(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/cameras', {
+    status: 503,
+    error: true,
+    errorMessage: 'Service unavailable',
+  });
+  await mockEndpoint(page, '**/api/v1/cameras/*', {
+    status: 503,
+    error: true,
+    errorMessage: 'Service unavailable',
+  });
+}
+
+/**
+ * Apply diagnostics health mocks
+ */
+export async function mockDiagnosticsHealthSuccess(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/dashboard/diagnostics/bridgeserver', {
+    data: mockDiagnosticsData.bridgeServerHealthy,
+  });
+  await mockEndpoint(page, '**/api/dashboard/diagnostics/minio', {
+    data: mockDiagnosticsData.minioHealthy,
+  });
+}
+
+/**
+ * Apply diagnostics 404 mock (feature unavailable)
+ */
+export async function mockDiagnostics404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/dashboard/diagnostics/**', {
+    status: 404,
+    error: true,
+    errorMessage: 'Endpoint not found',
+  });
+}
+
+/**
+ * Apply sessions success mock
+ */
+export async function mockSessionsSuccess(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+    data: mockSessionsData.withSessions,
+  });
+  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions/*/evidence*', {
+    data: mockEvidenceData.withEvidence,
+  });
+}
 
 // ============================================================================
 // V1 Cameras API Mock Data (Feature: 037-api-resilience)
@@ -905,14 +1339,23 @@ export async function mockDoorSuccess(
   page: Page,
   state: 'open' | 'closed' | 'locked' = 'closed'
 ): Promise<void> {
+  const doorData = {
+    state: state === 'locked' ? 'closed' : state,
+    lock_state: state === 'locked' ? 'locked' : 'unlocked',
+    last_command: state === 'locked' ? 'lock' : state,
+    last_command_time: new Date().toISOString(),
+  };
   await mockEndpoint(page, '**/api/door/status', {
     status: 200,
-    data: {
-      state: state === 'locked' ? 'closed' : state,
-      lock_state: state === 'locked' ? 'locked' : 'unlocked',
-      last_command: state === 'locked' ? 'lock' : state,
-      last_command_time: new Date().toISOString(),
-    },
+    data: doorData,
+  });
+  await mockEndpoint(page, '**/api/v1/door/status', {
+    status: 200,
+    data: wrapV1Envelope(doorData, 'test-door-status'),
+  });
+  await mockEndpoint(page, '**/api/v1/door/history*', {
+    status: 200,
+    data: wrapV1Envelope({ history: [] }, 'test-door-history'),
   });
 }
 
@@ -921,6 +1364,11 @@ export async function mockDoorSuccess(
  */
 export async function mockDoorError(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/door/status', {
+    status: 500,
+    error: true,
+    errorMessage: 'Door sensor not responding',
+  });
+  await mockEndpoint(page, '**/api/v1/door/status', {
     status: 500,
     error: true,
     errorMessage: 'Door sensor not responding',
@@ -934,6 +1382,9 @@ export async function mockDoorNetworkFailure(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/door/**', {
     abort: 'connectionfailed',
   });
+  await mockEndpoint(page, '**/api/v1/door/**', {
+    abort: 'connectionfailed',
+  });
 }
 
 /**
@@ -941,6 +1392,10 @@ export async function mockDoorNetworkFailure(page: Page): Promise<void> {
  */
 export async function mockSystemSuccess(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/system/info', {
+    status: 200,
+    data: defaultMockData.systemInfo,
+  });
+  await mockEndpoint(page, '**/api/v1/system/info', {
     status: 200,
     data: defaultMockData.systemInfo,
   });
@@ -955,6 +1410,11 @@ export async function mockSystemError(page: Page): Promise<void> {
     error: true,
     errorMessage: 'System info unavailable',
   });
+  await mockEndpoint(page, '**/api/v1/system/info', {
+    status: 500,
+    error: true,
+    errorMessage: 'System info unavailable',
+  });
 }
 
 /**
@@ -962,6 +1422,9 @@ export async function mockSystemError(page: Page): Promise<void> {
  */
 export async function mockSystemNetworkFailure(page: Page): Promise<void> {
   await mockEndpoint(page, '**/api/system/**', {
+    abort: 'connectionfailed',
+  });
+  await mockEndpoint(page, '**/api/v1/system/**', {
     abort: 'connectionfailed',
   });
 }

@@ -1,5 +1,5 @@
 # Logs
-logs
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -35,8 +35,11 @@ result
 
 # Environment
 .env
-.env.local
-.env.test.local
+.env.*
+!.env.example
 
 # Handoff Sentinel state
 .handoff-state.json
+
+# Claude session files
+session-*.md

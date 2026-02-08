@@ -127,6 +127,90 @@ test.describe('Live Pi Smoke Tests', () => {
     await expect(logIndicator).toBeVisible({ timeout: 5000 });
   });
 
+  // T028: Cameras tab smoke test with pre-flight check
+  test('should display cameras tab when endpoint available', async ({ page }) => {
+    if (!LIVE_PI_URL) {
+      test.skip();
+      return;
+    }
+
+    // Pre-flight check: skip if /api/v1/cameras is unavailable
+    const camerasResponse = await page.request.get(`${LIVE_PI_URL}/api/v1/cameras`);
+    if (camerasResponse.status() === 404 || camerasResponse.status() === 503) {
+      test.skip();
+      return;
+    }
+
+    await page.waitForSelector('[role="tablist"]', { timeout: 10000 });
+
+    // Navigate to Cameras tab
+    await page.getByRole('tab', { name: /cameras/i }).click();
+
+    // Should show camera section (auto-waiting)
+    await expect(page.getByText('Camera Management')).toBeVisible({ timeout: 10000 });
+
+    // Should show camera grid or empty state (not a crash)
+    const panel = page.locator('[role="tabpanel"][data-state="active"]');
+    await expect(panel).toBeVisible();
+  });
+
+  // T029: Containers tab smoke test with pre-flight check
+  test('should display containers tab when endpoint available', async ({ page }) => {
+    if (!LIVE_PI_URL) {
+      test.skip();
+      return;
+    }
+
+    // Pre-flight check: skip if /api/v1/containers is unavailable
+    const containersResponse = await page.request.get(`${LIVE_PI_URL}/api/v1/containers`);
+    if (containersResponse.status() === 404 || containersResponse.status() === 503) {
+      test.skip();
+      return;
+    }
+
+    await page.waitForSelector('[role="tablist"]', { timeout: 10000 });
+
+    // Navigate to Containers tab
+    await page.getByRole('tab', { name: /containers/i }).click();
+
+    // Should show container section (auto-waiting)
+    await expect(page.getByText('Container Management')).toBeVisible({ timeout: 10000 });
+
+    // Should show container grid or empty state (not a crash)
+    const panel = page.locator('[role="tabpanel"][data-state="active"]');
+    await expect(panel).toBeVisible();
+  });
+
+  // T030: Diagnostics tab smoke test with pre-flight check
+  test('should display diagnostics tab when endpoint available', async ({ page }) => {
+    if (!LIVE_PI_URL) {
+      test.skip();
+      return;
+    }
+
+    // Pre-flight check: skip if diagnostics health endpoint is unavailable
+    const diagnosticsResponse = await page.request.get(`${LIVE_PI_URL}/api/dashboard/diagnostics/health`);
+    if (diagnosticsResponse.status() === 404 || diagnosticsResponse.status() === 503) {
+      test.skip();
+      return;
+    }
+
+    await page.waitForSelector('[role="tablist"]', { timeout: 10000 });
+
+    // Navigate to Diagnostics tab via data-testid (it's under DEV section)
+    await page.click('[data-testid="tab-diagnostics"]');
+
+    // Should show diagnostics section (auto-waiting)
+    await expect(
+      page.locator('[data-testid="diagnostics-section"]')
+    ).toBeVisible({ timeout: 10000 });
+
+    // Should show health badge
+    await expect(
+      page.locator('[data-testid="overall-health-badge"]')
+    ).toBeVisible();
+  });
+
   test('should handle tab navigation smoothly', async ({ page }) => {
     if (!LIVE_PI_URL) {
       test.skip();

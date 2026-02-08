@@ -288,13 +288,15 @@ describe('Camera Diagnostics API Contracts', () => {
     });
 
     it('requires id field', () => {
-      const { id: _, ...noId } = mockCapturedEvidence;
+      const { id: _id, ...noId } = mockCapturedEvidence;
+      void _id; // Destructured to exclude from object
       const result = CapturedEvidenceSchema.safeParse(noId);
       expect(result.success).toBe(false);
     });
 
     it('requires camera_id field', () => {
-      const { camera_id: _, ...noCameraId } = mockCapturedEvidence;
+      const { camera_id: _cameraId, ...noCameraId } = mockCapturedEvidence;
+      void _cameraId; // Destructured to exclude from object
       const result = CapturedEvidenceSchema.safeParse(noCameraId);
       expect(result.success).toBe(false);
     });
@@ -338,13 +340,15 @@ describe('Camera Diagnostics API Contracts', () => {
     });
 
     it('requires id field', () => {
-      const { id: _, ...noId } = mockSessionDetail;
+      const { id: _id, ...noId } = mockSessionDetail;
+      void _id; // Destructured to exclude from object
       const result = SessionDetailSchema.safeParse(noId);
       expect(result.success).toBe(false);
     });
 
     it('requires status field', () => {
-      const { status: _, ...noStatus } = mockSessionDetail;
+      const { status: _status, ...noStatus } = mockSessionDetail;
+      void _status; // Destructured to exclude from object
       const result = SessionDetailSchema.safeParse(noStatus);
       expect(result.success).toBe(false);
     });

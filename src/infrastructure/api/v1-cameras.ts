@@ -118,12 +118,15 @@ function parseErrorResponse(error: unknown): V1ApiError {
   // Handle ApiError with status code
   if (error instanceof Error && 'status' in error) {
     const apiError = error as Error & { status: number; code?: string };
-    return new V1ApiError(
+    const v1Error = new V1ApiError(
       apiError.code || 'NETWORK_ERROR',
       apiError.message,
       apiError.status >= 500,
       undefined
     );
+    // Preserve HTTP status for isFeatureUnavailable() (045-dashboard-resilience-e2e)
+    (v1Error as V1ApiError & { httpStatus: number }).httpStatus = apiError.status;
+    return v1Error;
   }
 
   // Fallback for unknown errors
