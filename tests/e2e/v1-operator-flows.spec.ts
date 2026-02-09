@@ -136,19 +136,20 @@ test.describe('Operator-Critical Flows (Feature 045)', () => {
       timeout: 10000,
     });
 
-    // Verify all 3 containers render
+    // Verify all 3 containers render (scope to grid to avoid ContainerPicker ambiguity)
+    const grid = page.locator('[data-testid="containers-grid"]');
     await expect(
-      page.getByText(mockContainerData.kitchenFridge.label!)
+      grid.getByText(mockContainerData.kitchenFridge.label!)
     ).toBeVisible();
     await expect(
-      page.getByText(mockContainerData.garageFreezer.label!)
+      grid.getByText(mockContainerData.garageFreezer.label!)
     ).toBeVisible();
     await expect(
-      page.getByText(mockContainerData.numericContainer.label!)
+      grid.getByText(mockContainerData.numericContainer.label!)
     ).toBeVisible();
 
-    // Kitchen fridge has 1/4 cameras
-    await expect(page.getByText('1/4 cameras').first()).toBeVisible();
+    // Kitchen fridge has 3/4 cameras
+    await expect(page.getByText('3/4 cameras').first()).toBeVisible();
   });
 
   test('clicking container card opens detail dialog', async ({

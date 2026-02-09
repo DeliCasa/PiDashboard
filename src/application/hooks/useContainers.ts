@@ -13,6 +13,7 @@ import { v1ContainersApi } from '@/infrastructure/api/v1-containers';
 import { v1CamerasApi } from '@/infrastructure/api/v1-cameras';
 import { queryKeys } from '@/lib/queryClient';
 import { isFeatureUnavailable } from '@/infrastructure/api/client';
+import { useActiveContainerId } from '@/application/stores/activeContainer';
 import type {
   ContainerDetail,
   CreateContainerRequest,
@@ -219,4 +220,87 @@ export function getAvailablePositions(container: ContainerDetail): (1 | 2 | 3 | 
  */
 export function canDeleteContainer(container: ContainerDetail): boolean {
   return container.camera_count === 0;
+}
+
+// ============================================================================
+// Feature 046: Container-Scoped Views
+// ============================================================================
+
+/**
+ * Hook for getting cameras scoped to the active container.
+ *
+ * When a container is selected, returns only cameras assigned to it.
+ * When no container is selected (null), returns all cameras (global fallback).
+ *
+ * @param enabled - Whether to enable the queries
+ */
+export function useContainerCameras(enabled = true) {
+  const activeContainerId = useActiveContainerId();
+  const { data: containers = [], isLoading: containersLoading } = useContainers(enabled);
+  const camerasQuery = useQuery({
+    queryKey: queryKeys.cameraList(),
+    queryFn: v1CamerasApi.list,
+    enabled,
+    staleTime: 10_000,
+  });
+
+  const allCameras: Camera[] = camerasQuery.data ?? [];
+
+  // No container selected → return all cameras (global fallback)
+  if (!activeContainerId) {
+    return {
+      data: allCameras,
+      isLoading: camerasQuery.isLoading,
+      isError: camerasQuery.isError,
+      error: camerasQuery.error,
+      isScoped: false,
+    };
+  }
+
+  // Find the active container's camera assignments
+  const activeContainer = containers.find((c) => c.id === activeContainerId);
+  if (!activeContainer) {
+    // Container not found in list (may still be loading)
+    return {
+      data: allCameras,
+      isLoading: containersLoading || camerasQuery.isLoading,
+      isError: camerasQuery.isError,
+      error: camerasQuery.error,
+      isScoped: false,
+    };
+  }
+
+  // Build set of device IDs assigned to the active container
+  const containerDeviceIds = new Set(activeContainer.cameras.map((c) => c.device_id));
+
+  // Filter cameras to only those assigned to the active container
+  const scopedCameras = allCameras.filter((camera) => containerDeviceIds.has(camera.id));
+
+  return {
+    data: scopedCameras,
+    isLoading: containersLoading || camerasQuery.isLoading,
+    isError: camerasQuery.isError,
+    error: camerasQuery.error,
+    isScoped: true,
+  };
+}
+
+/**
+ * Hook for getting the set of camera device IDs belonging to the active container.
+ *
+ * Returns null when no container is selected (signals "show all").
+ * Returns a Set<string> of device IDs when a container is active.
+ *
+ * Used by EvidencePanel to filter evidence by container scope.
+ */
+export function useContainerCameraIds(): Set<string> | null {
+  const activeContainerId = useActiveContainerId();
+  const { data: containers = [] } = useContainers();
+
+  if (!activeContainerId) return null;
+
+  const activeContainer = containers.find((c) => c.id === activeContainerId);
+  if (!activeContainer) return null;
+
+  return new Set(activeContainer.cameras.map((c) => c.device_id));
 }

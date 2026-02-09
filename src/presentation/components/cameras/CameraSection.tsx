@@ -29,6 +29,7 @@ import {
   useCaptureTest,
   useRebootCamera,
 } from '@/application/hooks/useCameras';
+import { useContainerCameras } from '@/application/hooks/useContainers';
 import { CameraCard } from './CameraCard';
 import { CapturePreview } from './CapturePreview';
 import { CameraDetail } from './CameraDetail';
@@ -42,6 +43,8 @@ import { createDataUrl } from '@/lib/download';
 
 interface CameraSectionProps {
   className?: string;
+  /** When true, cameras are scoped to the active container (046-opaque-container-identity) */
+  scoped?: boolean;
 }
 
 interface CaptureState {
@@ -51,7 +54,7 @@ interface CaptureState {
   timestamp: string;
 }
 
-export function CameraSection({ className }: CameraSectionProps) {
+export function CameraSection({ className, scoped = false }: CameraSectionProps) {
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
   const [capturingId, setCapturingId] = useState<string | null>(null);
   const [rebootingId, setRebootingId] = useState<string | null>(null);
@@ -59,8 +62,13 @@ export function CameraSection({ className }: CameraSectionProps) {
   /** Camera ID pending reboot confirmation */
   const [rebootConfirmId, setRebootConfirmId] = useState<string | null>(null);
 
-  // Hooks - useCameras now uses V1 API with visibility-aware polling
-  const { data: cameras = [], isLoading, isError, error, refetch } = useCameras();
+  // 046-opaque-container-identity: Use scoped cameras when on dedicated tab
+  const globalCameras = useCameras();
+  const scopedCameras = useContainerCameras(scoped);
+  const cameraSource = scoped ? scopedCameras : globalCameras;
+  const { data: cameras = [], isLoading, isError, error } = cameraSource;
+  const refetch = 'refetch' in cameraSource ? cameraSource.refetch : globalCameras.refetch;
+  const isScoped = scoped && 'isScoped' in cameraSource && cameraSource.isScoped;
   const captureMutation = useCaptureTest();
   const rebootMutation = useRebootCamera();
 
@@ -192,11 +200,17 @@ export function CameraSection({ className }: CameraSectionProps) {
             </Button>
           </div>
         ) : cameras.length === 0 ? (
-          // Empty state (T015)
+          // Empty state (T015 + 046-opaque-container-identity)
           <div className="py-8 text-center text-muted-foreground" data-testid="camera-empty">
             <Camera className="mx-auto h-8 w-8 opacity-50" />
-            <p className="mt-2 text-sm">No cameras connected</p>
-            <p className="text-xs">Cameras will appear here once registered with PiOrchestrator</p>
+            <p className="mt-2 text-sm">
+              {isScoped ? 'No cameras assigned to this container' : 'No cameras connected'}
+            </p>
+            <p className="text-xs">
+              {isScoped
+                ? 'Assign cameras from the Containers tab'
+                : 'Cameras will appear here once registered with PiOrchestrator'}
+            </p>
           </div>
         ) : (
           // Camera grid

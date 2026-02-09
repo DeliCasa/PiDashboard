@@ -159,7 +159,7 @@ export function AllowlistEntryForm({
               <Input
                 id="container-id"
                 type="text"
-                placeholder="e.g., container-001"
+                placeholder="e.g., 550e8400-e29b-..."
                 value={containerId}
                 onChange={(e) => setContainerId(e.target.value)}
                 disabled={disabled || isLoading}

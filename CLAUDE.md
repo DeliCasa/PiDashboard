@@ -481,6 +481,8 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - Markdown files with YAML frontmatter, `.handoff-state.json` (auto-regenerated) (041-handoff-normalization)
 - N/A (API-driven, PiOrchestrator backend handles persistence) (043-container-identity-ui)
 - N/A (API-driven, PiOrchestrator/BridgeServer backends handle persistence) (044-evidence-ci-remediation)
+- TypeScript ~5.9.3 + React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (046-opaque-container-identity)
+- localStorage (active container selection), React Query cache (server state) (046-opaque-container-identity)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -495,9 +497,9 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 046-opaque-container-identity: Added TypeScript ~5.9.3 + React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
 - 044-evidence-ci-remediation: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 044-evidence-ci-remediation: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
-- 044-evidence-ci-remediation: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
   - `isFeatureUnavailable()` helper for 404/503 graceful degradation
   - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
   - Camera resilience tests: loading, success, empty, error, network failure

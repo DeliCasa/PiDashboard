@@ -30,6 +30,7 @@ import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndic
 import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
 import { DiagnosticsSection } from "@/presentation/components/diagnostics/DiagnosticsSection";
 import { ContainerSection } from "@/presentation/components/containers/ContainerSection";
+import { ContainerPicker } from "@/presentation/components/containers/ContainerPicker";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
 // 030-dashboard-recovery: Error boundary to catch uncaught exceptions
 import { ErrorBoundary } from "@/presentation/components/common/ErrorBoundary";
@@ -53,7 +54,10 @@ function Dashboard() {
               </p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <ContainerPicker className="hidden sm:block" />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -160,10 +164,10 @@ function Dashboard() {
             </TabsContent>
           )}
 
-          {/* Cameras Tab - 030-dashboard-recovery: wrapped with ErrorBoundary */}
+          {/* Cameras Tab - 046-opaque-container-identity: scoped to active container */}
           <TabsContent value="cameras">
             <ErrorBoundary>
-              <CameraSection />
+              <CameraSection scoped />
             </ErrorBoundary>
           </TabsContent>
 
