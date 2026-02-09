@@ -150,15 +150,15 @@ test.describe('Full Dashboard with Mocked APIs (Feature 045)', () => {
 
     const grid = page.locator('[data-testid="containers-grid"]');
     if (await grid.isVisible()) {
-      // Verify container labels render
+      // Verify container labels render (scope to grid to avoid ContainerPicker ambiguity)
       await expect(
-        page.getByText(mockContainerData.kitchenFridge.label!)
+        grid.getByText(mockContainerData.kitchenFridge.label!)
       ).toBeVisible();
       await expect(
-        page.getByText(mockContainerData.garageFreezer.label!)
+        grid.getByText(mockContainerData.garageFreezer.label!)
       ).toBeVisible();
       await expect(
-        page.getByText(mockContainerData.numericContainer.label!)
+        grid.getByText(mockContainerData.numericContainer.label!)
       ).toBeVisible();
 
       // Verify opaque IDs render — semantic, UUID, and numeric

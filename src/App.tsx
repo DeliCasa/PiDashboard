@@ -55,7 +55,7 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <ContainerPicker />
+            <ContainerPicker className="hidden sm:block" />
             <ThemeToggle />
           </div>
         </div>
