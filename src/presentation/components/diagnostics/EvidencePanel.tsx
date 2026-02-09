@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Image, RefreshCw, AlertCircle, ImageOff } from 'lucide-react';
 import { useSessionEvidence, useInvalidateEvidence } from '@/application/hooks/useEvidence';
+import { useContainerCameraIds } from '@/application/hooks/useContainers';
 import { EvidenceThumbnail } from './EvidenceThumbnail';
 import { EvidencePreviewModal } from './EvidencePreviewModal';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
@@ -37,19 +38,28 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
   const { data: evidence, isLoading, isFetching, error, refetch } = useSessionEvidence(sessionId);
   const { invalidate } = useInvalidateEvidence();
 
-  // Derive unique camera IDs from evidence for the filter dropdown
-  const cameraIds = useMemo(() => {
-    if (!evidence || evidence.length === 0) return [];
-    const ids = new Set(evidence.map((ev) => ev.camera_id));
-    return Array.from(ids).sort();
-  }, [evidence]);
+  // 046-opaque-container-identity: Scope evidence to active container's cameras
+  const containerCameraIds = useContainerCameraIds();
 
-  // Apply client-side camera filter
-  const filteredEvidence = useMemo(() => {
+  // Apply container scope first, then per-camera filter
+  const scopedEvidence = useMemo(() => {
     if (!evidence) return [];
-    if (!filterCameraId) return evidence;
-    return evidence.filter((ev) => ev.camera_id === filterCameraId);
-  }, [evidence, filterCameraId]);
+    if (!containerCameraIds) return evidence;
+    return evidence.filter((ev) => containerCameraIds.has(ev.camera_id));
+  }, [evidence, containerCameraIds]);
+
+  // Derive unique camera IDs from scoped evidence for the filter dropdown
+  const cameraIds = useMemo(() => {
+    if (scopedEvidence.length === 0) return [];
+    const ids = new Set(scopedEvidence.map((ev) => ev.camera_id));
+    return Array.from(ids).sort();
+  }, [scopedEvidence]);
+
+  // Apply client-side per-camera filter within scoped results
+  const filteredEvidence = useMemo(() => {
+    if (!filterCameraId) return scopedEvidence;
+    return scopedEvidence.filter((ev) => ev.camera_id === filterCameraId);
+  }, [scopedEvidence, filterCameraId]);
 
   const handleRefresh = () => {
     invalidate(sessionId);
@@ -113,7 +123,8 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
 
   // Empty state
   const isEmpty = !evidence || evidence.length === 0;
-  const isFilteredEmpty = filteredEvidence.length === 0 && !isEmpty;
+  const isScopedEmpty = scopedEvidence.length === 0 && !isEmpty;
+  const isFilteredEmpty = filteredEvidence.length === 0 && !isEmpty && !isScopedEmpty;
 
   return (
     <>
@@ -123,7 +134,7 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
             <CardTitle className="text-sm flex items-center gap-2">
               <Image className="h-4 w-4" />
               Evidence Captures
-              {!isEmpty && (
+              {!isEmpty && !isScopedEmpty && (
                 <span className="text-xs text-muted-foreground font-normal" data-testid="evidence-count">
                   ({filteredEvidence.length})
                 </span>
@@ -168,6 +179,11 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
             <div className="text-center py-4 text-muted-foreground" data-testid="evidence-empty">
               <ImageOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-xs">No evidence captures yet</p>
+            </div>
+          ) : isScopedEmpty ? (
+            <div className="text-center py-4 text-muted-foreground" data-testid="evidence-scoped-empty">
+              <ImageOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No evidence from this container's cameras</p>
             </div>
           ) : isFilteredEmpty ? (
             <div className="text-center py-4 text-muted-foreground" data-testid="evidence-filtered-empty">

@@ -11,3 +11,4 @@ export { CreateContainerDialog } from './CreateContainerDialog';
 export { EditContainerDialog } from './EditContainerDialog';
 export { AssignCameraDialog } from './AssignCameraDialog';
 export { EmptyState } from './EmptyState';
+export { ContainerPicker } from './ContainerPicker';
