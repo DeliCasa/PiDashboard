@@ -856,8 +856,22 @@ export const mockContainerData = {
         status: 'online',
         name: 'Front Door Camera',
       },
+      {
+        device_id: 'cam-002',
+        position: 2 as const,
+        assigned_at: new Date().toISOString(),
+        status: 'error',
+        name: 'Garage Camera',
+      },
+      {
+        device_id: 'cam-003',
+        position: 3 as const,
+        assigned_at: new Date().toISOString(),
+        status: 'offline',
+        name: 'Backyard Camera',
+      },
     ],
-    camera_count: 1,
+    camera_count: 3,
     online_count: 1,
   },
   /** Container with UUID ID */

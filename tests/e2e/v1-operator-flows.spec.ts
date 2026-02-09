@@ -148,8 +148,8 @@ test.describe('Operator-Critical Flows (Feature 045)', () => {
       grid.getByText(mockContainerData.numericContainer.label!)
     ).toBeVisible();
 
-    // Kitchen fridge has 1/4 cameras
-    await expect(page.getByText('1/4 cameras').first()).toBeVisible();
+    // Kitchen fridge has 3/4 cameras
+    await expect(page.getByText('3/4 cameras').first()).toBeVisible();
   });
 
   test('clicking container card opens detail dialog', async ({

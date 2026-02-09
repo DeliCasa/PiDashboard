@@ -431,9 +431,9 @@ test.describe('Container List and Create Flow (T022)', () => {
     await page.click(TAB_SELECTOR);
     await page.waitForSelector(SELECTORS.containersGrid, { state: 'visible', timeout: 15000 });
 
-    // Kitchen Fridge has 1/4 cameras (1 camera assigned out of 4 positions)
+    // Kitchen Fridge has 3/4 cameras (3 cameras assigned out of 4 positions)
     // Use first() since multiple containers may have the same camera count
-    await expect(page.getByText('1/4 cameras').first()).toBeVisible();
+    await expect(page.getByText('3/4 cameras').first()).toBeVisible();
 
     // Garage Unit has 0/4 cameras
     await expect(page.getByText('0/4 cameras')).toBeVisible();
