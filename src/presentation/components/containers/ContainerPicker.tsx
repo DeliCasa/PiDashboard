@@ -131,10 +131,13 @@ export function ContainerPicker({ className }: ContainerPickerProps) {
                       <span className="italic text-muted-foreground">Unnamed Container</span>
                     )}
                   </span>
-                  <span className="font-mono text-xs text-muted-foreground truncate">
-                    {container.id.length > 20
-                      ? `${container.id.slice(0, 8)}...${container.id.slice(-4)}`
-                      : container.id}
+                  <span className="text-xs text-muted-foreground truncate">
+                    <span>ID: </span>
+                    <span className="font-mono">
+                      {container.id.length > 20
+                        ? `${container.id.slice(0, 8)}...${container.id.slice(-4)}`
+                        : container.id}
+                    </span>
                   </span>
                 </div>
               </SelectItem>

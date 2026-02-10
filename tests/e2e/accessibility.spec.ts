@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from './fixtures/test-base';
-import { createMockAPI } from './fixtures/mock-routes';
+import { createMockAPI, mockInventoryRunList, mockSessionDelta, mockInventoryData, mockEndpoint, mockContainersResponses } from './fixtures/mock-routes';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
@@ -413,6 +413,139 @@ test.describe('Accessibility Tests (T069)', () => {
           // Dialog should be closed
           await expect(dialog).not.toBeVisible({ timeout: 2000 });
         }
+      }
+    });
+  });
+
+  /**
+   * Inventory Tab Accessibility (Feature: 047-inventory-delta-viewer, T031)
+   */
+  test.describe('Inventory Tab a11y (T031)', () => {
+    test('should have no critical violations on Inventory tab with data', async ({ page }) => {
+      // Setup container with inventory data
+      await mockEndpoint(page, '**/api/v1/containers', {
+        data: {
+          success: true,
+          data: {
+            containers: [{
+              id: '550e8400-e29b-41d4-a716-446655440001',
+              label: 'Kitchen Fridge',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              cameras: [],
+              camera_count: 0,
+              online_count: 0,
+            }],
+            total: 1,
+          },
+          correlation_id: 'test-containers',
+          timestamp: new Date().toISOString(),
+        },
+      });
+      await mockInventoryRunList(page);
+
+      await page.goto('/');
+      await page.waitForSelector('[role="tablist"]', { state: 'visible' });
+
+      // Select container if picker visible
+      const picker = page.getByTestId('container-picker');
+      if (await picker.isVisible({ timeout: 2000 })) {
+        await picker.click();
+        await page.getByText('Kitchen Fridge').click();
+      }
+
+      await page.getByRole('tab', { name: /inventory/i }).click();
+      await page.waitForSelector('[data-testid="inventory-section"]', { state: 'visible' });
+
+      const accessibilityScanResults = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+      const criticalViolations = accessibilityScanResults.violations.filter(
+        (v) =>
+          (v.impact === 'critical' || v.impact === 'serious') &&
+          !KNOWN_A11Y_VIOLATIONS.includes(v.id)
+      );
+
+      expect(criticalViolations).toHaveLength(0);
+    });
+
+    test('should have no critical violations on empty Inventory tab', async ({ page }) => {
+      await mockEndpoint(page, '**/api/v1/containers', {
+        data: mockContainersResponses.empty,
+      });
+
+      await page.goto('/');
+      await page.waitForSelector('[role="tablist"]', { state: 'visible' });
+      await page.getByRole('tab', { name: /inventory/i }).click();
+
+      const accessibilityScanResults = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+      const criticalViolations = accessibilityScanResults.violations.filter(
+        (v) =>
+          (v.impact === 'critical' || v.impact === 'serious') &&
+          !KNOWN_A11Y_VIOLATIONS.includes(v.id)
+      );
+
+      expect(criticalViolations).toHaveLength(0);
+    });
+
+    test('should have accessible review form controls', async ({ page }) => {
+      await mockEndpoint(page, '**/api/v1/containers', {
+        data: {
+          success: true,
+          data: {
+            containers: [{
+              id: '550e8400-e29b-41d4-a716-446655440001',
+              label: 'Kitchen Fridge',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              cameras: [],
+              camera_count: 0,
+              online_count: 0,
+            }],
+            total: 1,
+          },
+          correlation_id: 'test-containers',
+          timestamp: new Date().toISOString(),
+        },
+      });
+      await mockInventoryRunList(page);
+      await mockSessionDelta(page, mockInventoryData.needsReview);
+
+      await page.goto('/');
+      await page.waitForSelector('[role="tablist"]', { state: 'visible' });
+
+      const picker = page.getByTestId('container-picker');
+      if (await picker.isVisible({ timeout: 2000 })) {
+        await picker.click();
+        await page.getByText('Kitchen Fridge').click();
+      }
+
+      await page.getByRole('tab', { name: /inventory/i }).click();
+      await page.waitForSelector('[data-testid="inventory-section"]', { state: 'visible' });
+
+      // Navigate into a run detail to see review controls
+      const firstItem = page.getByTestId('run-list-item-0');
+      if (await firstItem.isVisible({ timeout: 5000 })) {
+        await firstItem.locator('button').first().click();
+        await page.waitForSelector('[data-testid="run-detail"]', { state: 'visible', timeout: 10000 });
+      }
+
+      // Review form buttons should have accessible names
+      const approveBtn = page.getByTestId('review-approve-btn');
+      if (await approveBtn.isVisible({ timeout: 2000 })) {
+        const text = await approveBtn.textContent();
+        expect(text).toBeTruthy();
+      }
+
+      // Overlay toggle should have aria-label
+      const overlayToggle = page.getByTestId('overlay-toggle');
+      if (await overlayToggle.isVisible({ timeout: 2000 })) {
+        const ariaLabel = await overlayToggle.getAttribute('aria-label');
+        expect(ariaLabel).toBeTruthy();
       }
     });
   });

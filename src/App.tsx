@@ -15,6 +15,7 @@ import {
   Radio,
   Stethoscope,
   Package,
+  ClipboardList,
 } from "lucide-react";
 
 // Presentation layer components (hexagonal architecture)
@@ -30,6 +31,7 @@ import { OfflineIndicator } from "@/presentation/components/offline/OfflineIndic
 import { BatchProvisioningSection } from "@/presentation/components/provisioning/BatchProvisioningSection";
 import { DiagnosticsSection } from "@/presentation/components/diagnostics/DiagnosticsSection";
 import { ContainerSection } from "@/presentation/components/containers/ContainerSection";
+import { InventorySection } from "@/presentation/components/inventory/InventorySection";
 import { ContainerPicker } from "@/presentation/components/containers/ContainerPicker";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
 // 030-dashboard-recovery: Error boundary to catch uncaught exceptions
@@ -97,6 +99,10 @@ function Dashboard() {
             <TabsTrigger value="containers" className="gap-2" data-testid="tab-containers">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Containers</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="gap-2" data-testid="tab-inventory">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Inventory</span>
             </TabsTrigger>
             <TabsTrigger value="door" className="gap-2">
               <DoorOpen className="h-4 w-4" />
@@ -175,6 +181,13 @@ function Dashboard() {
           <TabsContent value="containers">
             <ErrorBoundary>
               <ContainerSection />
+            </ErrorBoundary>
+          </TabsContent>
+
+          {/* Inventory Tab - 047-inventory-delta-viewer */}
+          <TabsContent value="inventory">
+            <ErrorBoundary>
+              <InventorySection />
             </ErrorBoundary>
           </TabsContent>
 

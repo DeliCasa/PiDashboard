@@ -170,14 +170,14 @@ describe('AllowlistEntryForm', () => {
 
       await user.type(screen.getByTestId('mac-input'), 'aabbccddeeff');
       await user.type(screen.getByTestId('description-input'), 'Test Device');
-      await user.type(screen.getByTestId('container-id-input'), 'container-001');
+      await user.type(screen.getByTestId('container-id-input'), '550e8400-e29b-41d4-a716-446655440001');
       await user.click(screen.getByTestId('add-entry-button'));
 
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'AA:BB:CC:DD:EE:FF',
           'Test Device',
-          'container-001'
+          '550e8400-e29b-41d4-a716-446655440001'
         );
       });
     });
@@ -200,14 +200,14 @@ describe('AllowlistEntryForm', () => {
 
       await user.type(screen.getByTestId('mac-input'), 'AA:BB:CC:DD:EE:FF');
       await user.type(screen.getByTestId('description-input'), '  Test Device  ');
-      await user.type(screen.getByTestId('container-id-input'), '  container-001  ');
+      await user.type(screen.getByTestId('container-id-input'), '  550e8400-e29b-41d4-a716-446655440001  ');
       await user.click(screen.getByTestId('add-entry-button'));
 
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'AA:BB:CC:DD:EE:FF',
           'Test Device',
-          'container-001'
+          '550e8400-e29b-41d4-a716-446655440001'
         );
       });
     });

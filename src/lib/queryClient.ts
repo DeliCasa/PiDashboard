@@ -129,6 +129,15 @@ export const queryKeys = {
   containers: ['containers'] as const,
   containerList: () => [...queryKeys.containers, 'list'] as const,
   containerById: (id: string) => [...queryKeys.containers, id] as const,
+
+  // Inventory (047-inventory-delta-viewer)
+  inventory: ['inventory'] as const,
+  inventoryLatest: (containerId: string) =>
+    [...queryKeys.inventory, 'latest', containerId] as const,
+  inventoryBySession: (sessionId: string) =>
+    [...queryKeys.inventory, 'session', sessionId] as const,
+  inventoryRuns: (containerId: string, filters?: { limit?: number; offset?: number; status?: string }) =>
+    [...queryKeys.inventory, 'runs', containerId, filters] as const,
 } as const;
 
 /**
@@ -146,5 +155,6 @@ export const invalidateQueries = {
   autoOnboard: () => queryClient.invalidateQueries({ queryKey: queryKeys.autoOnboard }),
   diagnostics: () => queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics }),
   containers: () => queryClient.invalidateQueries({ queryKey: queryKeys.containers }),
+  inventory: () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory }),
   all: () => queryClient.invalidateQueries(),
 };

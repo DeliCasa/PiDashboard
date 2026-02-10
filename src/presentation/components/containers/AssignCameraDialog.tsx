@@ -147,8 +147,9 @@ export function AssignCameraDialog({
                 <Camera className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">{selectedCameraData.name}</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground font-mono">
-                {selectedCameraData.id}
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span>Camera ID: </span>
+                <span className="font-mono">{selectedCameraData.id}</span>
               </p>
               <div className="mt-1 flex items-center gap-1">
                 {selectedCameraData.status === 'online' ? (

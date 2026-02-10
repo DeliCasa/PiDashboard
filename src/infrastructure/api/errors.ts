@@ -160,6 +160,11 @@ export const ERROR_MESSAGES: Record<ErrorCode | string, string> = {
   ONBOARD_RATE_LIMITED: 'Too many onboarding requests. Please wait.',
   ONBOARD_INTERNAL_ERROR: 'An internal error occurred during auto-onboard.',
 
+  // Inventory Errors (047-inventory-delta-viewer)
+  INVENTORY_NOT_FOUND: 'No inventory analysis found for this container.',
+  REVIEW_CONFLICT: 'This analysis has already been reviewed.',
+  REVIEW_INVALID: 'Review data is invalid. Please check your corrections.',
+
   // Container Errors (043-container-management)
   CONTAINER_NOT_FOUND: 'Container not found. It may have been deleted.',
   CONTAINER_HAS_CAMERAS: 'Cannot delete container with assigned cameras.',
@@ -316,7 +321,7 @@ export class V1ApiError extends Error {
 /**
  * Error category for UI styling and handling.
  */
-export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'onboard' | 'container' | 'network' | 'validation' | 'infrastructure' | 'unknown';
+export type ErrorCategory = 'auth' | 'session' | 'device' | 'camera' | 'onboard' | 'container' | 'inventory' | 'network' | 'validation' | 'infrastructure' | 'unknown';
 
 /**
  * Get the category of an error code for UI handling.
@@ -382,6 +387,15 @@ export function getErrorCategory(code: ErrorCode | string): ErrorCategory {
     code === 'ONBOARD_INTERNAL_ERROR'
   ) {
     return 'onboard';
+  }
+
+  // Inventory errors (047-inventory-delta-viewer)
+  if (
+    code === 'INVENTORY_NOT_FOUND' ||
+    code === 'REVIEW_CONFLICT' ||
+    code === 'REVIEW_INVALID'
+  ) {
+    return 'inventory';
   }
 
   // Container errors (043-container-management)

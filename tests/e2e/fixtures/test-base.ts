@@ -560,6 +560,48 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
+  // Mock inventory run list endpoint (Feature: 048-inventory-review)
+  await page.route('**/api/v1/containers/*/inventory/runs*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          runs: [],
+          pagination: { total: 0, limit: 20, offset: 0, has_more: false },
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock session delta endpoint (Feature: 048-inventory-review)
+  await page.route('**/api/v1/sessions/*/inventory-delta', async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found', retryable: false },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // Mock inventory delta endpoint (Feature: 047-inventory-delta-viewer)
+  await page.route('**/api/v1/containers/*/inventory/latest', async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'INVENTORY_NOT_FOUND', message: 'No inventory analysis found', retryable: false },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  });
+
   // Mock V1 auto-onboard status endpoint
   await page.route('**/api/v1/onboarding/auto/status', async (route) => {
     await route.fulfill({

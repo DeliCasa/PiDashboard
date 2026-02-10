@@ -157,7 +157,10 @@ function ContainerContent({
                 <span className="text-muted-foreground italic">Unnamed Container</span>
               )}
             </h3>
-            <p className="text-xs text-muted-foreground font-mono">{container.id}</p>
+            <p className="text-xs text-muted-foreground">
+              <span>Container ID: </span>
+              <span className="font-mono">{container.id}</span>
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
