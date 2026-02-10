@@ -99,7 +99,8 @@ export function CameraCard({
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          {camera.id}
+          <span>Camera ID: </span>
+          <span className="font-mono">{camera.id}</span>
           {camera.ip_address && ` • ${camera.ip_address}`}
         </CardDescription>
       </CardHeader>

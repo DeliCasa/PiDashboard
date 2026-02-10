@@ -73,8 +73,9 @@ export function EditContainerDialog({
             <Package className="h-5 w-5 text-primary" />
             Edit Container
           </DialogTitle>
-          <DialogDescription className="font-mono text-xs">
-            {container.id}
+          <DialogDescription className="text-xs">
+            <span>Container ID: </span>
+            <span className="font-mono">{container.id}</span>
           </DialogDescription>
         </DialogHeader>
 

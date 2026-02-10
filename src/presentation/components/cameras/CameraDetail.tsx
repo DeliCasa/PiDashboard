@@ -185,7 +185,10 @@ function CameraContent({ camera }: { camera: CameraType }) {
           </div>
           <div>
             <h3 className="text-lg font-semibold">{camera.name}</h3>
-            <p className="text-sm text-muted-foreground font-mono">{camera.id}</p>
+            <p className="text-sm text-muted-foreground">
+              <span>Camera ID: </span>
+              <span className="font-mono">{camera.id}</span>
+            </p>
           </div>
         </div>
         <Badge variant={isOnline ? 'default' : 'secondary'}>

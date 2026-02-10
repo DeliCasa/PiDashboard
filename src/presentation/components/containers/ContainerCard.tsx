@@ -52,8 +52,9 @@ export function ContainerCard({ container, onClick, className }: ContainerCardPr
             <Badge variant="secondary" className="text-xs">Full</Badge>
           )}
         </div>
-        <CardDescription className="font-mono text-xs truncate">
-          {container.id}
+        <CardDescription className="text-xs truncate">
+          <span>Container ID: </span>
+          <span className="font-mono">{container.id}</span>
         </CardDescription>
       </CardHeader>
 

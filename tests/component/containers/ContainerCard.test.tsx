@@ -95,9 +95,9 @@ describe('ContainerCard', () => {
     it('displays ID secondary to label (in CardDescription)', () => {
       render(<ContainerCard container={mockContainerDetailWithCamera} />);
 
-      // ID should be in the CardDescription element with text-xs
+      // ID should be in the CardDescription element with font-mono styling
       const idElement = screen.getByText(mockContainerDetailWithCamera.id);
-      expect(idElement).toHaveClass('text-xs');
+      expect(idElement).toHaveClass('font-mono');
     });
 
     it('always displays ID regardless of label presence', () => {

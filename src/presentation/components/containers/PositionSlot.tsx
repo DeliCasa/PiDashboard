@@ -111,8 +111,9 @@ export function PositionSlot({
               {assignment.name || 'Camera'}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">
-            {assignment.device_id}
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            <span>Device ID: </span>
+            <span className="font-mono">{assignment.device_id}</span>
           </p>
         </div>
 
