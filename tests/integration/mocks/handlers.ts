@@ -835,5 +835,152 @@ import {
 
 export { cameraDiagnosticsHandlers, allCameraDiagnosticsHandlers };
 
-// Combined handlers (legacy + V1 + diagnostics + camera diagnostics)
-export const allHandlers = [...handlers, ...v1Handlers, ...diagnosticsHandlers, ...cameraDiagnosticsHandlers];
+// ============================================================================
+// Inventory Delta Handlers (Feature 047)
+// ============================================================================
+
+import {
+  mockInventoryRunNeedsReview,
+  mockReviewSuccessResponse,
+  mockInventoryNotFoundResponse,
+  mockReviewConflictResponse,
+  mockInventoryServiceUnavailableResponse,
+  mockRunListResponse,
+} from '../../mocks/inventory-delta-fixtures';
+
+/**
+ * Create inventory delta handlers with optional fixture overrides.
+ */
+export function createInventoryDeltaHandlers(
+  overrides?: {
+    latestRun?: typeof mockInventoryRunNeedsReview | null;
+    runListResponse?: typeof mockRunListResponse;
+  }
+) {
+  const latestRun = overrides?.latestRun !== undefined
+    ? overrides.latestRun
+    : mockInventoryRunNeedsReview;
+  const runList = overrides?.runListResponse ?? mockRunListResponse;
+
+  return [
+    // GET /api/v1/containers/:containerId/inventory/runs
+    http.get(`${BASE_URL}/v1/containers/:containerId/inventory/runs`, async ({ request }) => {
+      await delay(100);
+      const url = new URL(request.url);
+      const limitParam = url.searchParams.get('limit');
+      const offsetParam = url.searchParams.get('offset');
+      const statusParam = url.searchParams.get('status');
+
+      // Filter by status if provided
+      let runs = runList.data?.runs ?? [];
+      if (statusParam) {
+        runs = runs.filter((r) => r.status === statusParam);
+      }
+
+      const limit = limitParam ? parseInt(limitParam, 10) : 20;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+      const paginatedRuns = runs.slice(offset, offset + limit);
+
+      return HttpResponse.json({
+        success: true,
+        data: {
+          runs: paginatedRuns,
+          pagination: {
+            total: runs.length,
+            limit,
+            offset,
+            has_more: offset + limit < runs.length,
+          },
+        },
+        timestamp: new Date().toISOString(),
+        request_id: `req-${Date.now()}`,
+      });
+    }),
+
+    // GET /api/v1/containers/:containerId/inventory/latest
+    http.get(`${BASE_URL}/v1/containers/:containerId/inventory/latest`, async () => {
+      await delay(100);
+      if (!latestRun) {
+        return HttpResponse.json(mockInventoryNotFoundResponse, { status: 404 });
+      }
+      return HttpResponse.json({
+        success: true,
+        data: latestRun,
+        timestamp: new Date().toISOString(),
+        request_id: `req-${Date.now()}`,
+      });
+    }),
+
+    // GET /api/v1/sessions/:sessionId/inventory-delta
+    http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, async () => {
+      await delay(100);
+      if (!latestRun) {
+        return HttpResponse.json(mockInventoryNotFoundResponse, { status: 404 });
+      }
+      return HttpResponse.json({
+        success: true,
+        data: latestRun,
+        timestamp: new Date().toISOString(),
+      });
+    }),
+
+    // POST /api/v1/inventory/:runId/review
+    http.post(`${BASE_URL}/v1/inventory/:runId/review`, async () => {
+      await delay(150);
+      return HttpResponse.json(mockReviewSuccessResponse);
+    }),
+  ];
+}
+
+export const inventoryDeltaHandlers = createInventoryDeltaHandlers();
+
+export const inventoryDeltaErrorHandlers = {
+  notFound: http.get(`${BASE_URL}/v1/containers/:containerId/inventory/latest`, async () => {
+    await delay(50);
+    return HttpResponse.json(mockInventoryNotFoundResponse, { status: 404 });
+  }),
+
+  serviceUnavailable: http.get(
+    `${BASE_URL}/v1/containers/:containerId/inventory/latest`,
+    async () => {
+      await delay(50);
+      return HttpResponse.json(mockInventoryServiceUnavailableResponse, { status: 503 });
+    }
+  ),
+
+  reviewConflict: http.post(`${BASE_URL}/v1/inventory/:runId/review`, async () => {
+    await delay(50);
+    return HttpResponse.json(mockReviewConflictResponse, { status: 409 });
+  }),
+
+  networkError: http.get(`${BASE_URL}/v1/containers/:containerId/inventory/latest`, async () => {
+    await delay(100);
+    return HttpResponse.error();
+  }),
+
+  runsNotFound: http.get(`${BASE_URL}/v1/containers/:containerId/inventory/runs`, async () => {
+    await delay(50);
+    return HttpResponse.json({
+      success: false,
+      error: { code: 'CONTAINER_NOT_FOUND', message: 'Container not found.', retryable: false },
+      timestamp: new Date().toISOString(),
+    }, { status: 404 });
+  }),
+
+  runsServiceUnavailable: http.get(`${BASE_URL}/v1/containers/:containerId/inventory/runs`, async () => {
+    await delay(50);
+    return HttpResponse.json({
+      success: false,
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'Inventory analysis service is temporarily unavailable.', retryable: true, retry_after_seconds: 30 },
+      timestamp: new Date().toISOString(),
+    }, { status: 503 });
+  }),
+
+  runsNetworkError: http.get(`${BASE_URL}/v1/containers/:containerId/inventory/runs`, async () => {
+    await delay(100);
+    return HttpResponse.error();
+  }),
+};
+
+// Combined handlers (legacy + V1 + diagnostics + camera diagnostics + inventory)
+export const allHandlers = [...handlers, ...v1Handlers, ...diagnosticsHandlers, ...cameraDiagnosticsHandlers, ...inventoryDeltaHandlers];

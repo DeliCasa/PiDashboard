@@ -374,6 +374,7 @@ export class MockAPI {
       this.mockDiagnosticsHealth(),
       this.mockSessions(),
       this.mockAutoOnboard(),
+      this.mockInventoryRuns(),
     ]);
   }
 
@@ -648,6 +649,28 @@ export class MockAPI {
   }
 
   /**
+   * Mock inventory run list endpoint
+   * Feature: 048-inventory-review
+   */
+  async mockInventoryRuns(config?: MockRouteConfig): Promise<void> {
+    await this.page.route(
+      '**/api/v1/containers/*/inventory/runs*',
+      createRouteHandler({
+        data: {
+          success: true,
+          data: {
+            runs: mockRunListData.runs,
+            pagination: { total: mockRunListData.runs.length, limit: 20, offset: 0, has_more: false },
+          },
+          timestamp: new Date().toISOString(),
+          request_id: 'req-e2e-runs',
+        },
+        ...config,
+      })
+    );
+  }
+
+  /**
    * Mock auto-onboard status endpoint
    * Feature: 044-evidence-ci-remediation
    */
@@ -841,9 +864,9 @@ export const mockScenarios = {
  * Verifies the UI doesn't assume UUID format for container IDs
  */
 export const mockContainerData = {
-  /** Container with semantic string ID */
+  /** Container with UUID ID */
   kitchenFridge: {
-    id: 'kitchen-fridge-001',
+    id: '550e8400-e29b-41d4-a716-446655440001',
     label: 'Kitchen Fridge',
     description: 'Main refrigerator',
     created_at: new Date().toISOString(),
@@ -1440,5 +1463,252 @@ export async function mockSystemNetworkFailure(page: Page): Promise<void> {
   });
   await mockEndpoint(page, '**/api/v1/system/**', {
     abort: 'connectionfailed',
+  });
+}
+
+// ============================================================================
+// Inventory Delta Mock Data (Feature: 047-inventory-delta-viewer)
+// ============================================================================
+
+export const mockInventoryData = {
+  /** Completed analysis needing review */
+  needsReview: {
+    run_id: 'run-e2e-001',
+    session_id: 'sess-e2e-001',
+    container_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'needs_review' as const,
+    items_before: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 5, confidence: 0.95 },
+      { name: 'Sprite 330ml', sku: 'SP330', quantity: 3, confidence: 0.88 },
+    ],
+    items_after: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 3, confidence: 0.92 },
+      { name: 'Sprite 330ml', sku: 'SP330', quantity: 3, confidence: 0.90 },
+    ],
+    delta: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', before_count: 5, after_count: 3, change: -2, confidence: 0.92, rationale: 'Two cans removed' },
+      { name: 'Sprite 330ml', sku: 'SP330', before_count: 3, after_count: 3, change: 0, confidence: 0.90, rationale: 'No change' },
+    ],
+    evidence: {
+      before_image_url: 'data:image/png;base64,iVBORw0KGgo=',
+      after_image_url: 'data:image/png;base64,iVBORw0KGgo=',
+      overlays: {
+        before: [{ label: 'Coca-Cola (5)', bounding_box: { x: 10, y: 20, width: 50, height: 80 }, confidence: 0.95 }],
+        after: [{ label: 'Coca-Cola (3)', bounding_box: { x: 10, y: 20, width: 50, height: 80 }, confidence: 0.92 }],
+      },
+    },
+    review: null,
+    metadata: { provider: 'openai', processing_time_ms: 4200, model_version: 'gpt-4o', created_at: '2026-02-09T11:59:00Z', completed_at: '2026-02-09T11:59:04Z' },
+  },
+  /** Approved analysis with corrections */
+  approved: {
+    run_id: 'run-e2e-002',
+    session_id: 'sess-e2e-002',
+    container_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'approved' as const,
+    items_before: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 5, confidence: 0.95 },
+    ],
+    items_after: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 3, confidence: 0.92 },
+    ],
+    delta: [
+      { name: 'Coca-Cola 330ml', sku: 'CC330', before_count: 5, after_count: 3, change: -2, confidence: 0.92, rationale: 'Two cans removed' },
+    ],
+    evidence: {
+      before_image_url: 'data:image/png;base64,iVBORw0KGgo=',
+      after_image_url: 'data:image/png;base64,iVBORw0KGgo=',
+    },
+    review: {
+      reviewer_id: 'operator-1',
+      action: 'override' as const,
+      corrections: [{ name: 'Coca-Cola 330ml', sku: 'CC330', original_count: 3, corrected_count: 4 }],
+      notes: 'Adjusted count.',
+      reviewed_at: '2026-02-09T12:05:00Z',
+    },
+    metadata: { provider: 'openai', created_at: '2026-02-09T11:59:00Z', completed_at: '2026-02-09T11:59:04Z' },
+  },
+  /** Pending analysis */
+  pending: {
+    run_id: 'run-e2e-003',
+    session_id: 'sess-e2e-003',
+    container_id: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'pending' as const,
+    items_before: null,
+    items_after: null,
+    delta: null,
+    evidence: null,
+    review: null,
+    metadata: { provider: 'openai', created_at: '2026-02-09T11:59:00Z' },
+  },
+};
+
+// ============================================================================
+// Inventory Run List Mock Data (Feature: 048-inventory-review)
+// ============================================================================
+
+export const mockRunListData = {
+  runs: [
+    {
+      run_id: 'run-e2e-001',
+      session_id: 'sess-e2e-001',
+      container_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'needs_review' as const,
+      delta_summary: { total_items: 5, items_changed: 2, items_added: 0, items_removed: 0 },
+      metadata: { provider: 'openai', processing_time_ms: 4200, model_version: 'gpt-4o', created_at: '2026-02-09T11:59:00Z', completed_at: '2026-02-09T11:59:04Z' },
+    },
+    {
+      run_id: 'run-e2e-002',
+      session_id: 'sess-e2e-002',
+      container_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'approved' as const,
+      delta_summary: { total_items: 3, items_changed: 1, items_added: 0, items_removed: 0 },
+      metadata: { provider: 'openai', processing_time_ms: 3500, created_at: '2026-02-09T10:30:00Z', completed_at: '2026-02-09T10:30:04Z' },
+    },
+    {
+      run_id: 'run-e2e-003',
+      session_id: 'sess-e2e-003',
+      container_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'pending' as const,
+      delta_summary: null,
+      metadata: { provider: 'openai', created_at: '2026-02-09T09:00:00Z' },
+    },
+    {
+      run_id: 'run-e2e-004',
+      session_id: 'sess-e2e-004',
+      container_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'failed' as const,
+      delta_summary: null,
+      metadata: { provider: 'openai', error_message: 'Vision API timeout', created_at: '2026-02-09T08:00:00Z' },
+    },
+    {
+      run_id: 'run-e2e-005',
+      session_id: 'sess-e2e-005',
+      container_id: '550e8400-e29b-41d4-a716-446655440001',
+      status: 'completed' as const,
+      delta_summary: { total_items: 6, items_changed: 3, items_added: 1, items_removed: 0 },
+      metadata: { provider: 'openai', processing_time_ms: 5000, created_at: '2026-02-09T07:00:00Z', completed_at: '2026-02-09T07:00:05Z' },
+    },
+  ],
+};
+
+/**
+ * Apply inventory run list mock (paginated)
+ */
+export async function mockInventoryRunList(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/runs*', {
+    data: {
+      success: true,
+      data: {
+        runs: mockRunListData.runs,
+        pagination: { total: mockRunListData.runs.length, limit: 20, offset: 0, has_more: false },
+      },
+      timestamp: new Date().toISOString(),
+      request_id: 'req-e2e-runs',
+    },
+  });
+}
+
+/**
+ * Apply inventory run list empty mock
+ */
+export async function mockInventoryRunListEmpty(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/runs*', {
+    data: {
+      success: true,
+      data: {
+        runs: [],
+        pagination: { total: 0, limit: 20, offset: 0, has_more: false },
+      },
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * Apply inventory latest mock - needs_review
+ */
+export async function mockInventoryNeedsReview(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/latest', {
+    data: { success: true, data: mockInventoryData.needsReview, timestamp: new Date().toISOString() },
+  });
+}
+
+/**
+ * Apply inventory latest mock - approved
+ */
+export async function mockInventoryApproved(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/latest', {
+    data: { success: true, data: mockInventoryData.approved, timestamp: new Date().toISOString() },
+  });
+}
+
+/**
+ * Apply inventory latest mock - pending
+ */
+export async function mockInventoryPending(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/latest', {
+    data: { success: true, data: mockInventoryData.pending, timestamp: new Date().toISOString() },
+  });
+}
+
+/**
+ * Apply inventory 404 mock (no data)
+ */
+export async function mockInventory404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/containers/*/inventory/latest', {
+    status: 404,
+    error: true,
+    errorMessage: 'No inventory analysis found',
+  });
+}
+
+/**
+ * Apply session delta mock (for detail view via session ID)
+ * Feature: 048-inventory-review
+ */
+export async function mockSessionDelta(page: Page, data: unknown): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/sessions/*/inventory-delta', {
+    data: {
+      success: true,
+      data,
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+/**
+ * Apply session delta 404 mock
+ */
+export async function mockSessionDelta404(page: Page): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/sessions/*/inventory-delta', {
+    status: 404,
+    error: true,
+    errorMessage: 'Session not found',
+  });
+}
+
+/**
+ * Apply inventory review submit mock
+ */
+export async function mockInventoryReviewSubmit(page: Page, status = 200): Promise<void> {
+  await mockEndpoint(page, '**/api/v1/inventory/*/review', {
+    status,
+    data: {
+      success: status === 200,
+      data: status === 200 ? {
+        run_id: 'run-e2e-001',
+        status: 'approved',
+        review: {
+          reviewer_id: 'operator-1',
+          action: 'approve',
+          corrections: [],
+          notes: '',
+          reviewed_at: new Date().toISOString(),
+        },
+      } : undefined,
+      error: status !== 200 ? { code: 'REVIEW_CONFLICT', message: 'Already reviewed', retryable: false } : undefined,
+      timestamp: new Date().toISOString(),
+    },
   });
 }
