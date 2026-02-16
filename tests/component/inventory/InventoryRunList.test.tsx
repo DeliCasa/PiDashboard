@@ -34,12 +34,12 @@ describe('InventoryRunList', () => {
     expect(screen.getByTestId('run-list-item-0')).toBeInTheDocument();
     expect(screen.getByTestId('run-list-item-4')).toBeInTheDocument();
 
-    // Status badges
-    expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('Needs Review')).toBeInTheDocument();
-    expect(screen.getByText('Completed')).toBeInTheDocument();
-    expect(screen.getByText('Pending')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    // Status badges (aligned with BridgeServer enum values)
+    expect(screen.getByText('Completed')).toBeInTheDocument();     // done
+    expect(screen.getByText('Needs Review')).toBeInTheDocument();  // needs_review
+    expect(screen.getByText('Running')).toBeInTheDocument();       // processing
+    expect(screen.getByText('Queued')).toBeInTheDocument();        // pending
+    expect(screen.getByText('Failed')).toBeInTheDocument();        // error
   });
 
   it('renders delta summary for each run', () => {
@@ -112,7 +112,7 @@ describe('InventoryRunList', () => {
     const item = screen.getByTestId('run-list-item-0');
     const navBtn = within(item).getByRole('button', { name: /view/i });
     await userEvent.click(navBtn);
-    expect(onSelectRun).toHaveBeenCalledWith('run-approved-001');
+    expect(onSelectRun).toHaveBeenCalledWith('run-done-001');
   });
 
   it('shows Load More button when hasMore is true', () => {
@@ -142,8 +142,8 @@ describe('InventoryRunList', () => {
     renderWithProviders(<InventoryRunList {...defaultProps} />);
 
     const noDataElements = screen.getAllByText('No data');
-    // pending and failed items have null delta_summary
-    expect(noDataElements.length).toBe(2);
+    // pending, processing, and error items have null delta_summary
+    expect(noDataElements.length).toBe(3);
   });
 });
 

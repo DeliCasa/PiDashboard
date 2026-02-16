@@ -33,7 +33,7 @@ function setupReviewHandler(status = 200, body?: unknown) {
           success: true,
           data: {
             run_id: mockInventoryRunNeedsReview.run_id,
-            status: 'approved',
+            status: 'done',
             review: {
               reviewer_id: 'operator-1',
               action: 'approve',

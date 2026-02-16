@@ -110,6 +110,14 @@ export function InventoryDeltaTable({ delta }: InventoryDeltaTableProps) {
                       </span>
                     )}
                   </div>
+                  {entry.rationale && (
+                    <p
+                      className="text-xs text-muted-foreground"
+                      data-testid={`delta-rationale-${index}`}
+                    >
+                      {entry.rationale}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {entry.before_count}

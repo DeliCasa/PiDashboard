@@ -14,10 +14,10 @@ import { z } from 'zod';
 
 export const AnalysisStatusSchema = z.enum([
   'pending',
-  'completed',
+  'processing',
+  'done',
   'needs_review',
-  'approved',
-  'failed',
+  'error',
 ]);
 export type AnalysisStatus = z.infer<typeof AnalysisStatusSchema>;
 

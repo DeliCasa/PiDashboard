@@ -82,7 +82,7 @@ export function InventoryReviewForm({ run, onReviewSubmitted }: InventoryReviewF
 
   // Don't show form if already reviewed or status is pending/failed
   if (run.review !== null && run.review !== undefined) return null;
-  if (run.status === 'pending' || run.status === 'failed') return null;
+  if (run.status === 'pending' || run.status === 'processing' || run.status === 'error') return null;
 
   const validateField = (field: string, index: number, value: string | number) => {
     const key = `${field}-${index}`;

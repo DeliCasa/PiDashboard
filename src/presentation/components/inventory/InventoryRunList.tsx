@@ -28,14 +28,15 @@ interface InventoryRunListProps {
   onSelectRun: (runId: string) => void;
   onLoadMore: () => void;
   onRetry: () => void;
+  onRefresh?: () => void;
 }
 
 const statusConfig: Record<AnalysisStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Pending', variant: 'secondary' },
-  completed: { label: 'Completed', variant: 'default' },
+  pending: { label: 'Queued', variant: 'secondary' },
+  processing: { label: 'Running', variant: 'secondary' },
+  done: { label: 'Completed', variant: 'default' },
   needs_review: { label: 'Needs Review', variant: 'outline' },
-  approved: { label: 'Approved', variant: 'default' },
-  failed: { label: 'Failed', variant: 'destructive' },
+  error: { label: 'Failed', variant: 'destructive' },
 };
 
 function formatTimestamp(isoString: string): string {
@@ -75,6 +76,7 @@ export function InventoryRunList({
   onSelectRun,
   onLoadMore,
   onRetry,
+  onRefresh,
 }: InventoryRunListProps) {
   // Loading state
   if (isLoading && runs.length === 0) {
@@ -132,6 +134,19 @@ export function InventoryRunList({
   // Run list
   return (
     <div data-testid="run-list" className="space-y-2">
+      {onRefresh && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRefresh}
+            data-testid="run-list-refresh"
+          >
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            Refresh
+          </Button>
+        </div>
+      )}
       {runs.map((run, index) => {
         const config = statusConfig[run.status];
         return (

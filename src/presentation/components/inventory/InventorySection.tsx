@@ -122,6 +122,7 @@ export function InventorySection({ className }: InventorySectionProps) {
           onSelectRun={handleSelectRun}
           onLoadMore={handleLoadMore}
           onRetry={() => refetch()}
+          onRefresh={() => refetch()}
         />
       </CardContent>
     </Card>

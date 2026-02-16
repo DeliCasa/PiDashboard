@@ -489,6 +489,9 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven; active container selection via localStorage/Zustand from feature 046) (048-inventory-review)
 - TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner (050-id-taxonomy-ui-docs)
 - N/A (no data model changes) (050-id-taxonomy-ui-docs)
+- TypeScript ~5.9.3 (analysis target; no new code) + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4 (051-inventory-delta-e2e-verify)
+- N/A (documentation-only feature) (051-inventory-delta-e2e-verify)
+- TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner (051-inventory-delta-e2e-verify)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -503,9 +506,9 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 051-inventory-delta-e2e-verify: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
+- 051-inventory-delta-e2e-verify: Added TypeScript ~5.9.3 (analysis target; no new code) + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4
 - 050-id-taxonomy-ui-docs: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
-- 048-inventory-review: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, Zustand 5.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
-- 048-inventory-review: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zod 3.x, Zustand 5.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
   - `isFeatureUnavailable()` helper for 404/503 graceful degradation
   - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
   - Camera resilience tests: loading, success, empty, error, network failure

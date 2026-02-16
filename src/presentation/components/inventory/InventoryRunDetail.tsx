@@ -97,13 +97,13 @@ export function InventoryRunDetail({ sessionId, onBack }: InventoryRunDetailProp
 
   // Content
   const showEvidence = data.evidence &&
-    (data.status === 'completed' || data.status === 'needs_review' || data.status === 'approved');
+    (data.status === 'done' || data.status === 'needs_review');
   const showReviewForm = !data.review &&
-    (data.status === 'completed' || data.status === 'needs_review');
+    (data.status === 'done' || data.status === 'needs_review');
   const showAuditTrail = !!data.review;
 
-  // Pending state
-  if (data.status === 'pending') {
+  // Pending/Processing state
+  if (data.status === 'pending' || data.status === 'processing') {
     return (
       <div data-testid="run-detail" className="space-y-4">
         <Button
@@ -136,8 +136,8 @@ export function InventoryRunDetail({ sessionId, onBack }: InventoryRunDetailProp
     );
   }
 
-  // Failed state
-  if (data.status === 'failed') {
+  // Error state
+  if (data.status === 'error') {
     return (
       <div data-testid="run-detail" className="space-y-4">
         <Button
@@ -183,7 +183,7 @@ export function InventoryRunDetail({ sessionId, onBack }: InventoryRunDetailProp
         <CardHeader>
           <CardTitle>
             <span data-testid="container-label">{containerLabel}</span>
-            {data.status === 'approved' && ' — Reviewed'}
+            {data.status === 'done' && data.review && ' — Reviewed'}
             {data.status === 'needs_review' && ' — Needs Review'}
           </CardTitle>
           <CardDescription>
@@ -193,6 +193,14 @@ export function InventoryRunDetail({ sessionId, onBack }: InventoryRunDetailProp
               className="font-mono text-xs text-muted-foreground"
             >
               {truncateId(data.container_id)}
+            </span>
+            <span className="mx-1 text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">Run: </span>
+            <span
+              data-testid="run-id"
+              className="font-mono text-xs text-muted-foreground"
+            >
+              {truncateId(data.run_id)}
             </span>
           </CardDescription>
         </CardHeader>

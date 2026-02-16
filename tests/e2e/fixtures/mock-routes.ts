@@ -1505,7 +1505,7 @@ export const mockInventoryData = {
     run_id: 'run-e2e-002',
     session_id: 'sess-e2e-002',
     container_id: '550e8400-e29b-41d4-a716-446655440001',
-    status: 'approved' as const,
+    status: 'done' as const,
     items_before: [
       { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 5, confidence: 0.95 },
     ],
@@ -1561,7 +1561,7 @@ export const mockRunListData = {
       run_id: 'run-e2e-002',
       session_id: 'sess-e2e-002',
       container_id: '550e8400-e29b-41d4-a716-446655440001',
-      status: 'approved' as const,
+      status: 'done' as const,
       delta_summary: { total_items: 3, items_changed: 1, items_added: 0, items_removed: 0 },
       metadata: { provider: 'openai', processing_time_ms: 3500, created_at: '2026-02-09T10:30:00Z', completed_at: '2026-02-09T10:30:04Z' },
     },
@@ -1577,7 +1577,7 @@ export const mockRunListData = {
       run_id: 'run-e2e-004',
       session_id: 'sess-e2e-004',
       container_id: '550e8400-e29b-41d4-a716-446655440001',
-      status: 'failed' as const,
+      status: 'error' as const,
       delta_summary: null,
       metadata: { provider: 'openai', error_message: 'Vision API timeout', created_at: '2026-02-09T08:00:00Z' },
     },
@@ -1585,7 +1585,7 @@ export const mockRunListData = {
       run_id: 'run-e2e-005',
       session_id: 'sess-e2e-005',
       container_id: '550e8400-e29b-41d4-a716-446655440001',
-      status: 'completed' as const,
+      status: 'done' as const,
       delta_summary: { total_items: 6, items_changed: 3, items_added: 1, items_removed: 0 },
       metadata: { provider: 'openai', processing_time_ms: 5000, created_at: '2026-02-09T07:00:00Z', completed_at: '2026-02-09T07:00:05Z' },
     },
@@ -1596,6 +1596,8 @@ export const mockRunListData = {
  * Apply inventory run list mock (paginated)
  */
 export async function mockInventoryRunList(page: Page): Promise<void> {
+  // Unroute default empty mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/containers/*/inventory/runs*');
   await mockEndpoint(page, '**/api/v1/containers/*/inventory/runs*', {
     data: {
       success: true,
@@ -1613,6 +1615,8 @@ export async function mockInventoryRunList(page: Page): Promise<void> {
  * Apply inventory run list empty mock
  */
 export async function mockInventoryRunListEmpty(page: Page): Promise<void> {
+  // Unroute default empty mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/containers/*/inventory/runs*');
   await mockEndpoint(page, '**/api/v1/containers/*/inventory/runs*', {
     data: {
       success: true,
@@ -1656,6 +1660,8 @@ export async function mockInventoryPending(page: Page): Promise<void> {
  * Apply inventory 404 mock (no data)
  */
 export async function mockInventory404(page: Page): Promise<void> {
+  // Unroute default 404 mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/containers/*/inventory/latest');
   await mockEndpoint(page, '**/api/v1/containers/*/inventory/latest', {
     status: 404,
     error: true,
@@ -1668,6 +1674,8 @@ export async function mockInventory404(page: Page): Promise<void> {
  * Feature: 048-inventory-review
  */
 export async function mockSessionDelta(page: Page, data: unknown): Promise<void> {
+  // Unroute default 404 mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/sessions/*/inventory-delta');
   await mockEndpoint(page, '**/api/v1/sessions/*/inventory-delta', {
     data: {
       success: true,
@@ -1681,6 +1689,8 @@ export async function mockSessionDelta(page: Page, data: unknown): Promise<void>
  * Apply session delta 404 mock
  */
 export async function mockSessionDelta404(page: Page): Promise<void> {
+  // Unroute default 404 mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/sessions/*/inventory-delta');
   await mockEndpoint(page, '**/api/v1/sessions/*/inventory-delta', {
     status: 404,
     error: true,
@@ -1698,7 +1708,7 @@ export async function mockInventoryReviewSubmit(page: Page, status = 200): Promi
       success: status === 200,
       data: status === 200 ? {
         run_id: 'run-e2e-001',
-        status: 'approved',
+        status: 'done',
         review: {
           reviewer_id: 'operator-1',
           action: 'approve',
