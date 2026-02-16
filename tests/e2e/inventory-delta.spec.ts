@@ -40,6 +40,8 @@ const containersWithInventory = {
 };
 
 async function setupContainers(page: import('@playwright/test').Page) {
+  // Unroute default empty containers mock registered in applyDefaultMocks
+  await page.unroute('**/api/v1/containers');
   await mockEndpoint(page, '**/api/v1/containers', {
     data: containersWithInventory,
   });
@@ -53,7 +55,7 @@ async function goToInventoryTab(page: import('@playwright/test').Page) {
   const picker = page.getByTestId('container-picker');
   if (await picker.isVisible()) {
     await picker.click();
-    await page.getByText('Kitchen Fridge').click();
+    await page.getByTestId('container-option-550e8400-e29b-41d4-a716-446655440001').click();
   }
 
   // Click the Inventory tab

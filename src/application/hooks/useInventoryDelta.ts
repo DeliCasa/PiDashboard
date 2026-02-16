@@ -28,7 +28,7 @@ const PENDING_POLL_INTERVAL = 15_000;
 const RUN_LIST_POLL_INTERVAL = 30_000;
 
 /** Terminal statuses that should stop polling */
-const TERMINAL_STATUSES: AnalysisStatus[] = ['completed', 'approved', 'failed'];
+const TERMINAL_STATUSES: AnalysisStatus[] = ['done', 'error'];
 
 // ============================================================================
 // Hooks

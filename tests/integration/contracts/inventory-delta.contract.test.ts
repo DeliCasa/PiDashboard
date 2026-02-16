@@ -56,7 +56,7 @@ import {
 // ============================================================================
 
 describe('AnalysisStatusSchema', () => {
-  it.each(['pending', 'completed', 'needs_review', 'approved', 'failed'])(
+  it.each(['pending', 'processing', 'done', 'needs_review', 'error'])(
     'validates status: %s',
     (status) => {
       expect(AnalysisStatusSchema.safeParse(status).success).toBe(true);
@@ -526,11 +526,11 @@ describe('Run List Fixture Consistency', () => {
 
   it('covers all 5 analysis statuses', () => {
     const statuses = new Set(mockRunListItems.map((r) => r.status));
-    expect(statuses).toEqual(new Set(['approved', 'needs_review', 'completed', 'pending', 'failed']));
+    expect(statuses).toEqual(new Set(['done', 'needs_review', 'processing', 'pending', 'error']));
   });
 
-  it('pending/failed items have null delta_summary', () => {
-    const pendingItems = mockRunListItems.filter((r) => r.status === 'pending' || r.status === 'failed');
+  it('pending/processing/error items have null delta_summary', () => {
+    const pendingItems = mockRunListItems.filter((r) => r.status === 'pending' || r.status === 'processing' || r.status === 'error');
     for (const item of pendingItems) {
       expect(item.delta_summary).toBeNull();
     }

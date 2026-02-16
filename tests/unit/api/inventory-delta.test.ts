@@ -160,7 +160,7 @@ describe('inventoryDeltaApi.submitReview', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data?.status).toBe('approved');
+    expect(result.data?.status).toBe('done');
   });
 
   it('submits override review with corrections', async () => {

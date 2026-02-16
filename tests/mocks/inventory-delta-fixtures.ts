@@ -114,13 +114,13 @@ export const mockInventoryRunNeedsReview: InventoryAnalysisRun = {
 };
 
 // ============================================================================
-// Completed Analysis (completed status)
+// Done Analysis (done status)
 // ============================================================================
 
 export const mockInventoryRunCompleted: InventoryAnalysisRun = {
   ...mockInventoryRunNeedsReview,
   run_id: 'run-completed-001',
-  status: 'completed',
+  status: 'done',
 };
 
 // ============================================================================
@@ -144,14 +144,34 @@ export const mockInventoryRunPending: InventoryAnalysisRun = {
 };
 
 // ============================================================================
-// Failed Analysis
+// Processing Analysis
+// ============================================================================
+
+export const mockInventoryRunProcessing: InventoryAnalysisRun = {
+  run_id: 'run-processing-001',
+  session_id: SESSION_ID,
+  container_id: CONTAINER_ID,
+  status: 'processing',
+  items_before: null,
+  items_after: null,
+  delta: null,
+  evidence: null,
+  review: null,
+  metadata: {
+    provider: 'openai',
+    created_at: '2026-02-09T11:59:00Z',
+  },
+};
+
+// ============================================================================
+// Error Analysis
 // ============================================================================
 
 export const mockInventoryRunFailed: InventoryAnalysisRun = {
   run_id: 'run-failed-001',
   session_id: SESSION_ID,
   container_id: CONTAINER_ID,
-  status: 'failed',
+  status: 'error',
   items_before: null,
   items_after: null,
   delta: null,
@@ -165,13 +185,13 @@ export const mockInventoryRunFailed: InventoryAnalysisRun = {
 };
 
 // ============================================================================
-// Approved (with corrections)
+// Done with Review (with corrections)
 // ============================================================================
 
 export const mockInventoryRunApproved: InventoryAnalysisRun = {
   ...mockInventoryRunNeedsReview,
   run_id: 'run-approved-001',
-  status: 'approved',
+  status: 'done',
   review: {
     reviewer_id: 'operator-1',
     action: 'override',
@@ -196,13 +216,13 @@ export const mockInventoryRunApproved: InventoryAnalysisRun = {
 };
 
 // ============================================================================
-// Approved as-is (no corrections)
+// Done with Review as-is (no corrections)
 // ============================================================================
 
 export const mockInventoryRunApprovedAsIs: InventoryAnalysisRun = {
   ...mockInventoryRunNeedsReview,
   run_id: 'run-approved-asis-001',
-  status: 'approved',
+  status: 'done',
   review: {
     reviewer_id: 'operator-2',
     action: 'approve',
@@ -244,7 +264,7 @@ export const mockInventoryRunLowConfidence: InventoryAnalysisRun = {
 export const mockInventoryRunZeroDelta: InventoryAnalysisRun = {
   ...mockInventoryRunNeedsReview,
   run_id: 'run-zero-delta-001',
-  status: 'completed',
+  status: 'done',
   delta: [
     {
       name: 'Coca-Cola 330ml',
@@ -318,7 +338,7 @@ export const mockReviewSuccessResponse: ReviewResponse = {
   success: true,
   data: {
     run_id: RUN_ID,
-    status: 'approved',
+    status: 'done',
     review: {
       reviewer_id: 'operator-1',
       action: 'override',
@@ -363,10 +383,10 @@ export const mockReviewInvalidResponse: ReviewResponse = {
 
 export const mockRunListItems: RunListItem[] = [
   {
-    run_id: 'run-approved-001',
+    run_id: 'run-done-001',
     session_id: 'sess-aaa11111-1111-1111-1111-111111111111',
     container_id: CONTAINER_ID,
-    status: 'approved',
+    status: 'done',
     delta_summary: {
       total_items: 5,
       items_changed: 2,
@@ -401,22 +421,14 @@ export const mockRunListItems: RunListItem[] = [
     },
   },
   {
-    run_id: 'run-completed-003',
+    run_id: 'run-processing-003',
     session_id: 'sess-ccc33333-3333-3333-3333-333333333333',
     container_id: CONTAINER_ID,
-    status: 'completed',
-    delta_summary: {
-      total_items: 3,
-      items_changed: 0,
-      items_added: 0,
-      items_removed: 0,
-    },
+    status: 'processing',
+    delta_summary: null,
     metadata: {
       provider: 'openai',
-      processing_time_ms: 3200,
-      model_version: 'gpt-4o-2024-08-06',
       created_at: '2026-02-09T09:00:00Z',
-      completed_at: '2026-02-09T09:00:03Z',
     },
   },
   {
@@ -431,10 +443,10 @@ export const mockRunListItems: RunListItem[] = [
     },
   },
   {
-    run_id: 'run-failed-005',
+    run_id: 'run-error-005',
     session_id: 'sess-eee55555-5555-5555-5555-555555555555',
     container_id: CONTAINER_ID,
-    status: 'failed',
+    status: 'error',
     delta_summary: null,
     metadata: {
       provider: 'openai',
@@ -481,7 +493,7 @@ export const mockRunListSecondPage: RunListResponse = {
         run_id: 'run-page2-001',
         session_id: 'sess-fff66666-6666-6666-6666-666666666666',
         container_id: CONTAINER_ID,
-        status: 'approved',
+        status: 'done',
         delta_summary: {
           total_items: 4,
           items_changed: 1,
