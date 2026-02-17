@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { useSubmitReview } from '@/application/hooks/useInventoryDelta';
 import { V1ApiError } from '@/infrastructure/api/errors';
 import type { InventoryAnalysisRun, ReviewCorrection } from '@/domain/types/inventory';
+import { normalizeDelta } from '@/infrastructure/api/inventory-delta-adapter';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -66,7 +67,7 @@ export function InventoryReviewForm({ run, onReviewSubmitted }: InventoryReviewF
   const queryClient = useQueryClient();
 
   const initEditMode = useCallback(() => {
-    const items: EditableItem[] = (run.delta ?? []).map((entry) => ({
+    const items: EditableItem[] = (normalizeDelta(run.delta) ?? []).map((entry) => ({
       name: entry.name,
       sku: entry.sku ?? null,
       originalCount: entry.after_count,

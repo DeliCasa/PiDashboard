@@ -11,6 +11,7 @@ import type {
   ReviewResponse,
   RunListItem,
   RunListResponse,
+  CategorizedDelta,
 } from '@/infrastructure/api/inventory-delta-schemas';
 
 // ============================================================================
@@ -518,4 +519,68 @@ export const mockRunListSecondPage: RunListResponse = {
   },
   timestamp: TIMESTAMP,
   request_id: 'req-uuid-789',
+};
+
+// ============================================================================
+// Categorized Delta Fixtures (Feature 052 — BridgeServer v2.0 format)
+// ============================================================================
+
+/** Categorized delta with all four categories populated */
+export const mockCategorizedDelta: CategorizedDelta = {
+  added: [
+    { name: 'Fanta 330ml', qty: 2, confidence: 0.88, bbox: null },
+  ],
+  removed: [
+    { name: 'Coca-Cola 330ml', qty: 2, confidence: 0.95, bbox: null },
+  ],
+  changed_qty: [
+    { name: 'Sprite 330ml', from_qty: 3, to_qty: 1, confidence: 0.85 },
+  ],
+  unknown: [
+    { note: 'Unidentified item near bottom shelf', confidence: 0.35 },
+  ],
+};
+
+/** Analysis run with categorized delta (v2.0 format) */
+export const mockInventoryRunCategorized: InventoryAnalysisRun = {
+  run_id: 'run-categorized-001',
+  session_id: SESSION_ID,
+  container_id: CONTAINER_ID,
+  status: 'done',
+  items_before: [
+    { name: 'Coca-Cola 330ml', sku: 'CC330', quantity: 5, confidence: 0.95 },
+    { name: 'Sprite 330ml', sku: 'SP330', quantity: 3, confidence: 0.88 },
+  ],
+  items_after: [
+    { name: 'Sprite 330ml', sku: 'SP330', quantity: 1, confidence: 0.90 },
+    { name: 'Fanta 330ml', sku: 'FT330', quantity: 2, confidence: 0.88 },
+  ],
+  delta: mockCategorizedDelta,
+  evidence: {
+    before_image_url: 'https://storage.example.com/images/before-cat.jpg',
+    after_image_url: 'https://storage.example.com/images/after-cat.jpg',
+  },
+  review: null,
+  metadata: {
+    provider: 'openai',
+    processing_time_ms: 3800,
+    model_version: 'gpt-4o-2024-08-06',
+    created_at: '2026-02-09T12:00:00Z',
+    completed_at: '2026-02-09T12:00:04Z',
+  },
+};
+
+/** Categorized delta with only changed quantities (no adds/removes/unknowns) */
+export const mockInventoryRunCategorizedMixed: InventoryAnalysisRun = {
+  ...mockInventoryRunCategorized,
+  run_id: 'run-categorized-mixed-001',
+  delta: {
+    added: [],
+    removed: [],
+    changed_qty: [
+      { name: 'Coca-Cola 330ml', from_qty: 5, to_qty: 3, confidence: 0.92 },
+      { name: 'Sprite 330ml', from_qty: 3, to_qty: 3, confidence: 0.90 },
+    ],
+    unknown: [],
+  },
 };

@@ -27,6 +27,11 @@ import {
   RunListItemSchema,
   InventoryPaginationSchema,
   RunListResponseSchema,
+  CategorizedDeltaSchema,
+  AddedItemSchema,
+  RemovedItemSchema,
+  ChangedQtyItemSchema,
+  UnknownItemSchema,
 } from '@/infrastructure/api/inventory-delta-schemas';
 import {
   mockInventoryRunNeedsReview,
@@ -49,6 +54,9 @@ import {
   mockRunListResponse,
   mockRunListEmpty,
   mockRunListSecondPage,
+  mockInventoryRunCategorized,
+  mockInventoryRunCategorizedMixed,
+  mockCategorizedDelta,
 } from '../../mocks/inventory-delta-fixtures';
 
 // ============================================================================
@@ -538,5 +546,151 @@ describe('Run List Fixture Consistency', () => {
 
   it('second page has different offset than first page', () => {
     expect(mockRunListSecondPage.data!.pagination.offset).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// Categorized Delta Schema Tests (Feature 052)
+// ============================================================================
+
+describe('CategorizedDeltaSchema', () => {
+  it('validates full categorized delta fixture', () => {
+    expect(CategorizedDeltaSchema.safeParse(mockCategorizedDelta).success).toBe(true);
+  });
+
+  it('validates empty categorized delta (all categories empty)', () => {
+    const empty = { added: [], removed: [], changed_qty: [], unknown: [] };
+    expect(CategorizedDeltaSchema.safeParse(empty).success).toBe(true);
+  });
+
+  it('rejects categorized delta missing added array', () => {
+    const invalid = { removed: [], changed_qty: [], unknown: [] };
+    expect(CategorizedDeltaSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('rejects categorized delta missing removed array', () => {
+    const invalid = { added: [], changed_qty: [], unknown: [] };
+    expect(CategorizedDeltaSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('AddedItemSchema', () => {
+  it('validates added item from fixture', () => {
+    expect(AddedItemSchema.safeParse(mockCategorizedDelta.added[0]).success).toBe(true);
+  });
+
+  it('rejects zero qty', () => {
+    const invalid = { name: 'Test', qty: 0, confidence: 0.9 };
+    expect(AddedItemSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('rejects empty name', () => {
+    const invalid = { name: '', qty: 1, confidence: 0.9 };
+    expect(AddedItemSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('RemovedItemSchema', () => {
+  it('validates removed item from fixture', () => {
+    expect(RemovedItemSchema.safeParse(mockCategorizedDelta.removed[0]).success).toBe(true);
+  });
+
+  it('rejects negative qty', () => {
+    const invalid = { name: 'Test', qty: -1, confidence: 0.9 };
+    expect(RemovedItemSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('ChangedQtyItemSchema', () => {
+  it('validates changed_qty item from fixture', () => {
+    expect(ChangedQtyItemSchema.safeParse(mockCategorizedDelta.changed_qty[0]).success).toBe(true);
+  });
+
+  it('rejects negative from_qty', () => {
+    const invalid = { name: 'Test', from_qty: -1, to_qty: 2, confidence: 0.9 };
+    expect(ChangedQtyItemSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('rejects negative to_qty', () => {
+    const invalid = { name: 'Test', from_qty: 1, to_qty: -1, confidence: 0.9 };
+    expect(ChangedQtyItemSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('UnknownItemSchema', () => {
+  it('validates unknown item from fixture', () => {
+    expect(UnknownItemSchema.safeParse(mockCategorizedDelta.unknown[0]).success).toBe(true);
+  });
+
+  it('rejects empty note', () => {
+    const invalid = { note: '', confidence: 0.5 };
+    expect(UnknownItemSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('InventoryAnalysisRunSchema — Categorized Delta', () => {
+  it('validates categorized delta fixture (all categories)', () => {
+    const result = InventoryAnalysisRunSchema.safeParse(mockInventoryRunCategorized);
+    expect(result.success).toBe(true);
+  });
+
+  it('validates categorized-mixed fixture (changed_qty only)', () => {
+    const result = InventoryAnalysisRunSchema.safeParse(mockInventoryRunCategorizedMixed);
+    expect(result.success).toBe(true);
+  });
+
+  it('categorized fixture run_ids are unique from flat fixtures', () => {
+    const ids = [
+      mockInventoryRunCategorized.run_id,
+      mockInventoryRunCategorizedMixed.run_id,
+      mockInventoryRunNeedsReview.run_id,
+      mockInventoryRunCompleted.run_id,
+    ];
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+// ============================================================================
+// Feature 053 — Negative Validation Tests
+// ============================================================================
+
+describe('SubmitReviewRequestSchema — T028: rejects empty name in correction', () => {
+  it('rejects override request with empty correction name', () => {
+    const request = {
+      action: 'override',
+      corrections: [
+        { name: '', original_count: 3, corrected_count: 4 },
+      ],
+    };
+    const result = SubmitReviewRequestSchema.safeParse(request);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('ReviewCorrectionSchema — T029: rejects negative counts', () => {
+  it('rejects negative original_count', () => {
+    const invalid = { name: 'Test', original_count: -1, corrected_count: 5 };
+    const result = ReviewCorrectionSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects negative corrected_count', () => {
+    const invalid = { name: 'Test', original_count: 5, corrected_count: -1 };
+    const result = ReviewCorrectionSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('ReviewCorrectionSchema — T030: accepts added/removed flags', () => {
+  it('accepts correction with added: true', () => {
+    const correction = { name: 'Added Item', original_count: 0, corrected_count: 3, added: true };
+    const result = ReviewCorrectionSchema.safeParse(correction);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts correction with removed: true', () => {
+    const correction = { name: 'Removed Item', original_count: 5, corrected_count: 0, removed: true };
+    const result = ReviewCorrectionSchema.safeParse(correction);
+    expect(result.success).toBe(true);
   });
 });

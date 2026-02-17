@@ -10,6 +10,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { inventoryDeltaApi } from '@/infrastructure/api/inventory-delta';
+import { normalizeDelta } from '@/infrastructure/api/inventory-delta-adapter';
 import { queryKeys } from '@/lib/queryClient';
 import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { getUserMessage } from '@/infrastructure/api/errors';
@@ -49,6 +50,10 @@ export function useLatestInventory(containerId: string | null, enabled = true) {
     queryKey: queryKeys.inventoryLatest(containerId ?? ''),
     queryFn: () => inventoryDeltaApi.getLatest(containerId!),
     enabled: enabled && containerId !== null,
+    select: (data) => {
+      if (!data) return data;
+      return { ...data, delta: normalizeDelta(data.delta) };
+    },
     refetchInterval: (query) => {
       // Stop polling on error or feature unavailable
       if (query.state.error && isFeatureUnavailable(query.state.error)) {
@@ -80,6 +85,10 @@ export function useSessionDelta(sessionId: string | null, enabled = true) {
     queryKey: queryKeys.inventoryBySession(sessionId ?? ''),
     queryFn: () => inventoryDeltaApi.getBySession(sessionId!),
     enabled: enabled && sessionId !== null,
+    select: (data) => {
+      if (!data) return data;
+      return { ...data, delta: normalizeDelta(data.delta) };
+    },
     staleTime: 10_000,
   });
 }
@@ -186,8 +195,9 @@ export function useSessionLookup() {
         setData(null);
         return null;
       }
-      setData(result);
-      return result;
+      const normalized = { ...result, delta: normalizeDelta(result.delta) };
+      setData(normalized);
+      return normalized;
     } catch (err) {
       setIsError(true);
       setError(err instanceof Error ? err : new Error('Lookup failed'));

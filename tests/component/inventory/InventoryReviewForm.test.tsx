@@ -417,3 +417,199 @@ describe('InventoryReviewForm validation', () => {
     expect(screen.queryByTestId('review-confirm-dialog')).not.toBeInTheDocument();
   });
 });
+
+// ============================================================================
+// Feature 053 — Additional coverage (T015, T018, T020, T022, T023)
+// ============================================================================
+
+describe('InventoryReviewForm add-then-remove cancellation (T015)', () => {
+  it('add then remove cancels out — submit stays disabled', async () => {
+    const queryClient = createTestQueryClient();
+    renderWithProviders(
+      <InventoryReviewForm run={mockInventoryRunNeedsReview} />,
+      { queryClient }
+    );
+
+    // Enter edit mode
+    fireEvent.click(screen.getByTestId('review-edit-btn'));
+
+    // Add a new item (becomes index 2 since delta has 2 items)
+    fireEvent.click(screen.getByTestId('review-add-item-btn'));
+    expect(screen.getByTestId('edit-row-2')).toBeInTheDocument();
+
+    // Remove the newly added item
+    fireEvent.click(screen.getByTestId('edit-remove-2'));
+
+    // The added+removed item is filtered out by buildCorrections(),
+    // and the original items are unchanged, so corrections.length === 0.
+    // Submit button should be disabled because no net corrections exist.
+    expect(screen.getByTestId('review-submit-btn')).toBeDisabled();
+  });
+});
+
+describe('InventoryReviewForm notes length validation (T018)', () => {
+  it('notes >500 chars shows error and disables submit', async () => {
+    const queryClient = createTestQueryClient();
+    renderWithProviders(
+      <InventoryReviewForm run={mockInventoryRunNeedsReview} />,
+      { queryClient }
+    );
+
+    // Enter edit mode
+    fireEvent.click(screen.getByTestId('review-edit-btn'));
+
+    // Make a correction so submit would otherwise be enabled
+    const countInput = screen.getByTestId('edit-count-0') as HTMLInputElement;
+    await userEvent.clear(countInput);
+    await userEvent.type(countInput, '10');
+
+    // Set notes to >500 chars by bypassing the HTML maxLength attribute
+    // via fireEvent.change (which does not respect maxLength)
+    const longNotes = 'x'.repeat(501);
+    const notesEl = screen.getByTestId('review-notes');
+    fireEvent.change(notesEl, { target: { value: longNotes } });
+
+    // The component renders an error message when notes.length > MAX_NOTES_LENGTH
+    expect(screen.getByTestId('review-error-notes')).toBeInTheDocument();
+    expect(screen.getByText(/500 characters/)).toBeInTheDocument();
+
+    // Submit button is disabled because submitDisabled includes
+    // notes.length > MAX_NOTES_LENGTH
+    expect(screen.getByTestId('review-submit-btn')).toBeDisabled();
+  });
+});
+
+describe('InventoryReviewForm confirmation dialog cancel (T020)', () => {
+  it('confirmation dialog cancel retains edits', async () => {
+    const queryClient = createTestQueryClient();
+    renderWithProviders(
+      <InventoryReviewForm run={mockInventoryRunNeedsReview} />,
+      { queryClient }
+    );
+
+    // Enter edit mode and change a count
+    fireEvent.click(screen.getByTestId('review-edit-btn'));
+    const countInput = screen.getByTestId('edit-count-0') as HTMLInputElement;
+    await userEvent.clear(countInput);
+    await userEvent.type(countInput, '10');
+
+    // Click submit to open the confirmation dialog
+    fireEvent.click(screen.getByTestId('review-submit-btn'));
+    expect(screen.getByTestId('review-confirm-dialog')).toBeInTheDocument();
+
+    // Click Cancel in the dialog (AlertDialogCancel renders a button with text "Cancel")
+    const cancelButtons = screen.getAllByRole('button', { name: /cancel/i });
+    // The dialog Cancel button is the one inside the dialog
+    const dialogCancel = cancelButtons.find(
+      (btn) => btn.closest('[data-testid="review-confirm-dialog"]') !== null
+    );
+    expect(dialogCancel).toBeTruthy();
+    fireEvent.click(dialogCancel!);
+
+    // Dialog should close
+    await waitFor(() => {
+      expect(screen.queryByTestId('review-confirm-dialog')).not.toBeInTheDocument();
+    });
+
+    // Edit form should still be visible with the changed value retained
+    expect(screen.getByTestId('review-edit-form')).toBeInTheDocument();
+    const retainedInput = screen.getByTestId('edit-count-0') as HTMLInputElement;
+    expect(retainedInput.value).toBe('10');
+  });
+});
+
+describe('InventoryReviewForm conflict 409 handling (T022)', () => {
+  it('conflict (409) shows conflict UI with refresh button', async () => {
+    // Set up MSW to return 409 with REVIEW_CONFLICT response
+    setupReviewHandler(409, {
+      success: false,
+      error: {
+        code: 'REVIEW_CONFLICT',
+        message: 'Already reviewed',
+        retryable: false,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    const queryClient = createTestQueryClient();
+    renderWithProviders(
+      <InventoryReviewForm run={mockInventoryRunNeedsReview} />,
+      { queryClient }
+    );
+
+    // Enter edit mode and change a count
+    fireEvent.click(screen.getByTestId('review-edit-btn'));
+    const countInput = screen.getByTestId('edit-count-0') as HTMLInputElement;
+    await userEvent.clear(countInput);
+    await userEvent.type(countInput, '10');
+
+    // Open confirmation dialog
+    fireEvent.click(screen.getByTestId('review-submit-btn'));
+    expect(screen.getByTestId('review-confirm-dialog')).toBeInTheDocument();
+
+    // Confirm submission — this triggers the 409 response
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('review-confirm-btn'));
+    });
+
+    // Wait for conflict UI to appear
+    await waitFor(() => {
+      expect(screen.getByTestId('review-conflict')).toBeInTheDocument();
+    });
+
+    // Verify the refresh button is present
+    expect(screen.getByTestId('review-refresh-btn')).toBeInTheDocument();
+  });
+});
+
+describe('InventoryReviewForm conflict refresh re-enables review (T023)', () => {
+  it('clicking refresh after conflict resets to initial state', async () => {
+    // Set up MSW to return 409 with REVIEW_CONFLICT response
+    setupReviewHandler(409, {
+      success: false,
+      error: {
+        code: 'REVIEW_CONFLICT',
+        message: 'Already reviewed',
+        retryable: false,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    const queryClient = createTestQueryClient();
+    renderWithProviders(
+      <InventoryReviewForm run={mockInventoryRunNeedsReview} />,
+      { queryClient }
+    );
+
+    // Enter edit mode and change a count
+    fireEvent.click(screen.getByTestId('review-edit-btn'));
+    const countInput = screen.getByTestId('edit-count-0') as HTMLInputElement;
+    await userEvent.clear(countInput);
+    await userEvent.type(countInput, '10');
+
+    // Open confirmation dialog and confirm
+    fireEvent.click(screen.getByTestId('review-submit-btn'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('review-confirm-btn'));
+    });
+
+    // Wait for conflict UI
+    await waitFor(() => {
+      expect(screen.getByTestId('review-conflict')).toBeInTheDocument();
+    });
+
+    // Click the refresh button
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('review-refresh-btn'));
+    });
+
+    // Conflict UI should disappear
+    expect(screen.queryByTestId('review-conflict')).not.toBeInTheDocument();
+
+    // The component should be back to the initial review-actions state
+    // (handleRefreshAndReview sets editMode=false and showConflict=false)
+    expect(screen.getByTestId('review-actions')).toBeInTheDocument();
+    expect(screen.getByTestId('review-approve-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('review-edit-btn')).toBeInTheDocument();
+  });
+});
