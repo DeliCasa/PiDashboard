@@ -11,7 +11,18 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      run_live:
+        description: 'Run live inventory E2E tests against real deployment'
+        required: false
+        type: boolean
+        default: false
+      live_base_url:
+        description: 'Live deployment URL for inventory tests'
+        required: false
+        type: string
+        default: 'https://raspberrypi.tail345cd5.ts.net'
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -287,6 +298,67 @@ jobs:
           else
             echo "✅ Main bundle size ($MAIN_SIZE bytes) is within budget"
           fi
+
+  # Live E2E Tests (Feature 054) — opt-in via workflow_dispatch
+  live-e2e:
+    name: Live Inventory E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event.inputs.run_live == 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: nix-community
+
+      - name: Install dependencies in Nix shell
+        run: nix develop --command npm ci
+
+      - name: Run live inventory E2E tests
+        env:
+          LIVE_E2E: '1'
+          LIVE_BASE_URL: ${{ github.event.inputs.live_base_url }}
+          PLAYWRIGHT_WORKERS: '1'
+        run: nix develop --command npx playwright test --project=live-inventory
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-live
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-live
+          path: test-results/
+          retention-days: 14
+
+      - name: Upload traces and screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-live
+          path: |
+            test-results/**/*.zip
+            test-results/**/*.png
+            test-results/**/*.webm
+          retention-days: 14
 
   # Summary job that depends on all others
   test-summary:

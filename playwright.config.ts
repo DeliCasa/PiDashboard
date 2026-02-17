@@ -30,6 +30,14 @@ const maxWorkers = process.env.PLAYWRIGHT_WORKERS
  */
 const livePiUrl = process.env.LIVE_PI_URL;
 
+/**
+ * Optional live E2E mode for inventory validation against real BridgeServer
+ * Set LIVE_E2E=1 to enable, LIVE_BASE_URL to specify deployment URL
+ */
+const liveE2E = process.env.LIVE_E2E === '1';
+const liveBaseUrl =
+  process.env.LIVE_BASE_URL || 'https://raspberrypi.tail345cd5.ts.net';
+
 export default defineConfig({
   // Test directory
   testDir: './tests/e2e',
@@ -127,18 +135,39 @@ export default defineConfig({
           },
         ]
       : []),
+    // Live inventory E2E tests - only run when LIVE_E2E=1
+    ...(liveE2E
+      ? [
+          {
+            name: 'live-inventory',
+            testMatch: '**/live-inventory-correction.spec.ts',
+            timeout: 60000,
+            use: {
+              ...devices['Desktop Chrome'],
+              baseURL: liveBaseUrl,
+              trace: 'on' as const,
+              screenshot: 'on' as const,
+              actionTimeout: 15000,
+              navigationTimeout: 30000,
+            },
+          },
+        ]
+      : []),
   ],
 
   // Web server configuration for local development
   // Uses e2e-specific Vite config that doesn't proxy to Pi (allows route mocking)
-  webServer: {
-    command: 'npx vite --config vite.config.e2e.ts',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60000,
-    // Don't start server if testing against live Pi
-    ...(livePiUrl ? { command: undefined, url: undefined } : {}),
-  },
+  // Don't start server if testing against live Pi or live E2E
+  ...(livePiUrl || liveE2E
+    ? {}
+    : {
+        webServer: {
+          command: 'npx vite --config vite.config.e2e.ts',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 60000,
+        },
+      }),
 
   // Output directory for test artifacts
   outputDir: 'test-results',
