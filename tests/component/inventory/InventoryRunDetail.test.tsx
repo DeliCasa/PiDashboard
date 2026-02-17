@@ -18,6 +18,9 @@ import {
   mockInventoryRunPending,
   mockInventoryRunFailed,
   mockInventoryRunApproved,
+  mockInventoryRunCategorized,
+  mockInventoryRunLowConfidence,
+  mockInventoryRunZeroDelta,
 } from '../../mocks/inventory-delta-fixtures';
 
 // Mock the container hook
@@ -262,5 +265,230 @@ describe('InventoryRunDetail container label', () => {
     expect(containerIdEl.textContent?.length).toBeLessThan(
       'ctr-c1c2c3c4-e5f6-7890-abcd-ef1234567890'.length
     );
+  });
+});
+
+// ============================================================================
+// T013: needs_review Status Badge + Review Form
+// ============================================================================
+
+describe('InventoryRunDetail — needs_review status (T013)', () => {
+  it('renders "Needs Review" status badge in title', async () => {
+    setupSessionHandler(mockInventoryRunNeedsReview);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Needs Review/)).toBeInTheDocument();
+  });
+
+  it('shows review form when run has no existing review', async () => {
+    setupSessionHandler(mockInventoryRunNeedsReview);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    // Review form should be present (run has null review)
+    expect(screen.getByTestId('review-actions')).toBeInTheDocument();
+  });
+
+  it('does not show review form for run with existing review', async () => {
+    setupSessionHandler(mockInventoryRunApproved);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    // Review form should NOT be present (run already has review)
+    expect(screen.queryByTestId('review-actions')).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// T014: Error Status with error_message and Back Action
+// ============================================================================
+
+describe('InventoryRunDetail — error status (T014)', () => {
+  it('renders "Analysis Failed" title for error status', async () => {
+    setupSessionHandler(mockInventoryRunFailed);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Analysis Failed')).toBeInTheDocument();
+  });
+
+  it('renders error_message from metadata', async () => {
+    setupSessionHandler(mockInventoryRunFailed);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Vision API timeout after 30s')).toBeInTheDocument();
+  });
+
+  it('renders back button for error status', async () => {
+    const onBack = vi.fn();
+    setupSessionHandler(mockInventoryRunFailed);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={onBack} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('run-detail-back')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('run-detail-back'));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders categorized delta through normalization pipeline', async () => {
+    setupSessionHandler(mockInventoryRunCategorized);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    // Categorized delta should be normalized and rendered in the table
+    expect(screen.getByText('Fanta 330ml')).toBeInTheDocument();
+    expect(screen.getByText('Coca-Cola 330ml')).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// T015: 404 Not-Found Error
+// ============================================================================
+
+describe('InventoryRunDetail — not-found error (T015)', () => {
+  it('shows error state with "Failed to load" for 404 response', async () => {
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        return HttpResponse.json(
+          {
+            success: false,
+            error: { code: 'INVENTORY_NOT_FOUND', message: 'Not found', retryable: false },
+            timestamp: new Date().toISOString(),
+          },
+          { status: 404 }
+        );
+      })
+    );
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="nonexistent-session" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail-error')).toBeInTheDocument();
+    }, { timeout: 15_000 });
+
+    expect(screen.getByText('Failed to load run details')).toBeInTheDocument();
+  }, 20_000);
+});
+
+// ============================================================================
+// T016: Processing/Pending State with Spinner
+// ============================================================================
+
+describe('InventoryRunDetail — processing state (T016)', () => {
+  it('shows "Analysis In Progress" title for pending status', async () => {
+    setupSessionHandler(mockInventoryRunPending);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Analysis In Progress')).toBeInTheDocument();
+    expect(screen.getByText(/analysis is being processed/i)).toBeInTheDocument();
+  });
+
+  it('shows back button in processing state', async () => {
+    const onBack = vi.fn();
+    setupSessionHandler(mockInventoryRunPending);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={onBack} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('run-detail-back')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('run-detail-back'));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ============================================================================
+// Feature 053: Low-Confidence and Zero-Delta Edge Cases (T010, T011)
+// ============================================================================
+
+describe('InventoryRunDetail — edge case rendering (Feature 053)', () => {
+  it('T010: shows low-confidence banner when all items have low confidence', async () => {
+    setupSessionHandler(mockInventoryRunLowConfidence);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('low-confidence-banner')).toBeInTheDocument();
+  });
+
+  it('T011: shows "No change" for every row when all deltas are zero', async () => {
+    setupSessionHandler(mockInventoryRunZeroDelta);
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="test-session-id" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail')).toBeInTheDocument();
+    });
+
+    // Delta table renders rows (not the empty state) because items exist
+    expect(screen.getByTestId('inventory-delta-table')).toBeInTheDocument();
+
+    // Every change column should show "No change" since all deltas are 0
+    const noChangeElements = screen.getAllByText('No change');
+    expect(noChangeElements.length).toBe(2);
   });
 });

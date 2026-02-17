@@ -84,6 +84,11 @@ export default defineConfig({
 
     // Timeout for navigation
     navigationTimeout: 15000,
+
+    // Block Service Workers to ensure page.route() intercepts API requests.
+    // The app registers a SW (public/sw.js) that intercepts /api/* requests,
+    // which would bypass Playwright's route mocking in E2E tests.
+    serviceWorkers: 'block',
   },
 
   // Configure projects for different browsers

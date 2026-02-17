@@ -202,3 +202,48 @@ describe('InventoryRunList opaque ID display', () => {
     expect(onSelectRun).not.toHaveBeenCalled();
   });
 });
+
+// ============================================================================
+// T017: Service Unavailable / Network Error States
+// ============================================================================
+
+describe('InventoryRunList — Error States (T017)', () => {
+  it('shows "Service temporarily unavailable" text for unavailable state', () => {
+    renderWithProviders(
+      <InventoryRunList {...defaultProps} runs={[]} isUnavailable={true} />
+    );
+
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
+  });
+
+  it('shows retry button for error state', async () => {
+    const onRetry = vi.fn();
+    renderWithProviders(
+      <InventoryRunList
+        {...defaultProps}
+        runs={[]}
+        isError={true}
+        error={new Error('Network error')}
+        onRetry={onRetry}
+      />
+    );
+
+    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    expect(retryBtn).toBeInTheDocument();
+    await userEvent.click(retryBtn);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows distinct error message for error vs unavailable state', () => {
+    const { unmount } = renderWithProviders(
+      <InventoryRunList {...defaultProps} runs={[]} isError={true} error={new Error('Fail')} />
+    );
+    expect(screen.getByText('Failed to load run list')).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <InventoryRunList {...defaultProps} runs={[]} isUnavailable={true} />
+    );
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
+  });
+});

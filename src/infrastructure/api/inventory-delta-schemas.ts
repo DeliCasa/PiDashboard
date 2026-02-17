@@ -71,6 +71,48 @@ export const DeltaEntrySchema = z.object({
 });
 export type DeltaEntry = z.infer<typeof DeltaEntrySchema>;
 
+// ============================================================================
+// Categorized Delta (BridgeServer v2.0 — Feature 052)
+// ============================================================================
+
+export const AddedItemSchema = z.object({
+  name: z.string().min(1),
+  qty: z.number().int().positive(),
+  confidence: z.number().min(0).max(1),
+  bbox: BoundingBoxSchema.nullable().optional(),
+});
+export type AddedItem = z.infer<typeof AddedItemSchema>;
+
+export const RemovedItemSchema = z.object({
+  name: z.string().min(1),
+  qty: z.number().int().positive(),
+  confidence: z.number().min(0).max(1),
+  bbox: BoundingBoxSchema.nullable().optional(),
+});
+export type RemovedItem = z.infer<typeof RemovedItemSchema>;
+
+export const ChangedQtyItemSchema = z.object({
+  name: z.string().min(1),
+  from_qty: z.number().int().nonnegative(),
+  to_qty: z.number().int().nonnegative(),
+  confidence: z.number().min(0).max(1),
+});
+export type ChangedQtyItem = z.infer<typeof ChangedQtyItemSchema>;
+
+export const UnknownItemSchema = z.object({
+  note: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+});
+export type UnknownItem = z.infer<typeof UnknownItemSchema>;
+
+export const CategorizedDeltaSchema = z.object({
+  added: z.array(AddedItemSchema),
+  removed: z.array(RemovedItemSchema),
+  changed_qty: z.array(ChangedQtyItemSchema),
+  unknown: z.array(UnknownItemSchema),
+});
+export type CategorizedDelta = z.infer<typeof CategorizedDeltaSchema>;
+
 export const OverlayItemSchema = z.object({
   label: z.string(),
   bounding_box: BoundingBoxSchema,
@@ -131,7 +173,7 @@ export const InventoryAnalysisRunSchema = z.object({
   status: AnalysisStatusSchema,
   items_before: z.array(InventoryItemSchema).nullable().optional(),
   items_after: z.array(InventoryItemSchema).nullable().optional(),
-  delta: z.array(DeltaEntrySchema).nullable().optional(),
+  delta: z.union([z.array(DeltaEntrySchema), CategorizedDeltaSchema]).nullable().optional(),
   evidence: EvidenceImagesSchema.nullable().optional(),
   review: ReviewSchema.nullable().optional(),
   metadata: AnalysisMetadataSchema,

@@ -178,3 +178,58 @@ describe('InventorySessionLookup', () => {
     expect(screen.getByTestId('session-lookup-submit')).toBeDisabled();
   });
 });
+
+// ============================================================================
+// T018: Client-side Validation — Empty/Whitespace Input
+// ============================================================================
+
+describe('InventorySessionLookup — client-side validation (T018)', () => {
+  it('does not make API call for empty input', async () => {
+    let apiCalled = false;
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        apiCalled = true;
+        return HttpResponse.json({
+          success: true,
+          data: mockInventoryRunNeedsReview,
+          timestamp: new Date().toISOString(),
+        });
+      })
+    );
+
+    renderWithProviders(<InventorySessionLookup onRunFound={vi.fn()} />);
+    await userEvent.click(screen.getByTestId('session-lookup-submit'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-lookup-error')).toBeInTheDocument();
+    });
+
+    expect(apiCalled).toBe(false);
+    expect(screen.getByText('Please enter a session ID')).toBeInTheDocument();
+  });
+
+  it('does not make API call for whitespace-only input', async () => {
+    let apiCalled = false;
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        apiCalled = true;
+        return HttpResponse.json({
+          success: true,
+          data: mockInventoryRunNeedsReview,
+          timestamp: new Date().toISOString(),
+        });
+      })
+    );
+
+    renderWithProviders(<InventorySessionLookup onRunFound={vi.fn()} />);
+    await userEvent.type(screen.getByTestId('session-lookup-input'), '   ');
+    await userEvent.click(screen.getByTestId('session-lookup-submit'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-lookup-error')).toBeInTheDocument();
+    });
+
+    expect(apiCalled).toBe(false);
+    expect(screen.getByText('Please enter a session ID')).toBeInTheDocument();
+  });
+});
