@@ -28,6 +28,21 @@ import {
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 // ============================================================================
+// Request ID Tracking (055-session-review-drilldown)
+// ============================================================================
+
+/** Last request_id from a successful inventory API response envelope */
+let _lastRequestId: string | undefined;
+
+/**
+ * Get the request_id from the most recent successful inventory API call.
+ * Used by RunDebugInfo for correlation ID display.
+ */
+export function getLastRequestId(): string | undefined {
+  return _lastRequestId;
+}
+
+// ============================================================================
 // Error Handling
 // ============================================================================
 
@@ -131,6 +146,7 @@ export const inventoryDeltaApi = {
         );
       }
 
+      _lastRequestId = parsed.data.request_id;
       return parsed.data.data ?? null;
     } catch (error) {
       if (error instanceof V1ApiError) {
@@ -180,6 +196,7 @@ export const inventoryDeltaApi = {
         );
       }
 
+      _lastRequestId = parsed.data.request_id;
       return parsed.data.data ?? null;
     } catch (error) {
       if (error instanceof V1ApiError) {
@@ -253,6 +270,52 @@ export const inventoryDeltaApi = {
    * @returns The review response with updated status
    * @throws V1ApiError on failure (REVIEW_CONFLICT for 409, REVIEW_INVALID for 400)
    */
+  /**
+   * Request a re-run of an analysis that errored.
+   * Uses feature detection: returns { supported: false } on 404/501.
+   *
+   * @param runId - Analysis run ID to re-run
+   * @returns { supported, newRunId? } — supported is false if endpoint doesn't exist
+   */
+  rerunAnalysis: async (
+    runId: string
+  ): Promise<{ supported: boolean; newRunId?: string }> => {
+    try {
+      const response = await apiClient.post<unknown>(
+        `/v1/inventory/${encodeURIComponent(runId)}/rerun`,
+        {},
+        { timeout: DEFAULT_TIMEOUT_MS }
+      );
+
+      const resp = response as {
+        success?: boolean;
+        data?: { new_run_id?: string; status?: string };
+      };
+
+      return {
+        supported: true,
+        newRunId: resp.data?.new_run_id,
+      };
+    } catch (error) {
+      // Feature detection: 404/501 means endpoint not implemented
+      if (error instanceof Error && 'status' in error) {
+        const status = (error as Error & { status: number }).status;
+        if (status === 404 || status === 501) {
+          return { supported: false };
+        }
+        if (status === 409) {
+          throw new V1ApiError(
+            'RERUN_IN_PROGRESS',
+            'A re-run is already in progress for this analysis.',
+            false
+          );
+        }
+      }
+      if (error instanceof V1ApiError) throw error;
+      throw parseErrorResponse(error);
+    }
+  },
+
   submitReview: async (
     runId: string,
     data: SubmitReviewRequest

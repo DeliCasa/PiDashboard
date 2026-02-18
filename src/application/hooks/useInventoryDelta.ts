@@ -160,6 +160,36 @@ export function useInventoryRuns(
 }
 
 /**
+ * Hook for requesting a re-run of an errored analysis.
+ * Feature: 055-session-review-drilldown
+ *
+ * Uses feature detection: on 404/501, sets rerunSupported to false.
+ * On success, invalidates inventory queries and shows toast.
+ *
+ * @param runId - Analysis run ID to re-run
+ */
+export function useRerunAnalysis(runId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => inventoryDeltaApi.rerunAnalysis(runId),
+    onSuccess: (result) => {
+      if (result.supported) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory });
+        toast.success('Re-run initiated');
+      }
+    },
+    onError: (error: Error) => {
+      if (V1ApiError.isV1ApiError(error)) {
+        toast.error(getUserMessage(error.code));
+      } else {
+        toast.error('Failed to start re-run. Please try again.');
+      }
+    },
+  });
+}
+
+/**
  * Hook for imperative session ID lookup.
  *
  * Returns a lookup function that trims the input, validates non-empty,

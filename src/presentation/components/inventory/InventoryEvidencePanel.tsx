@@ -31,7 +31,7 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
   if (!evidence || (!evidence.before_image_url && !evidence.after_image_url)) {
     return (
       <div className="py-4 text-center text-muted-foreground" data-testid="evidence-no-images">
-        No evidence images available
+        No evidence images available for this session
       </div>
     );
   }
@@ -102,8 +102,12 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
                 ))}
               </div>
             ) : (
-              <div className="flex aspect-video items-center justify-center rounded-md border bg-muted">
+              <div
+                className="flex aspect-video flex-col items-center justify-center gap-2 rounded-md border bg-muted"
+                data-testid="evidence-before-missing"
+              >
                 <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+                <span className="text-xs text-muted-foreground">Before image not captured</span>
               </div>
             )}
           </div>
@@ -147,8 +151,12 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
                 ))}
               </div>
             ) : (
-              <div className="flex aspect-video items-center justify-center rounded-md border bg-muted">
+              <div
+                className="flex aspect-video flex-col items-center justify-center gap-2 rounded-md border bg-muted"
+                data-testid="evidence-after-missing"
+              >
                 <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+                <span className="text-xs text-muted-foreground">After image not captured</span>
               </div>
             )}
           </div>
