@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, ImageOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -27,11 +27,13 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
   const [showOverlays, setShowOverlays] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState({ before: true, after: true });
+  const [imageError, setImageError] = useState({ before: false, after: false });
 
   if (!evidence || (!evidence.before_image_url && !evidence.after_image_url)) {
     return (
       <div className="py-4 text-center text-muted-foreground" data-testid="evidence-no-images">
-        No evidence images available for this session
+        No evidence images available for this session.
+        Check if the camera was online during this session.
       </div>
     );
   }
@@ -68,9 +70,18 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
             <p className="mb-2 text-sm font-medium text-muted-foreground">Before</p>
             {evidence.before_image_url ? (
               <div className="relative cursor-pointer overflow-hidden rounded-md border">
-                {imageLoading.before && (
+                {imageLoading.before && !imageError.before && (
                   <Skeleton className="aspect-video w-full" />
                 )}
+                {imageError.before ? (
+                  <div
+                    className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg bg-muted/30 text-muted-foreground"
+                    data-testid="evidence-before-error"
+                  >
+                    <ImageOff className="h-8 w-8" />
+                    <span className="text-xs">Image unavailable</span>
+                  </div>
+                ) : (
                 <img
                   src={evidence.before_image_url}
                   alt="Before inventory"
@@ -81,8 +92,12 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
                   data-testid="evidence-before"
                   onClick={() => setFullscreenImage(evidence.before_image_url!)}
                   onLoad={() => setImageLoading((prev) => ({ ...prev, before: false }))}
-                  onError={() => setImageLoading((prev) => ({ ...prev, before: false }))}
+                  onError={() => {
+                    setImageError((prev) => ({ ...prev, before: true }));
+                    setImageLoading((prev) => ({ ...prev, before: false }));
+                  }}
                 />
+                )}
                 {showOverlays && evidence.overlays?.before?.map((overlay, i) => (
                   <div
                     key={i}
@@ -117,9 +132,18 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
             <p className="mb-2 text-sm font-medium text-muted-foreground">After</p>
             {evidence.after_image_url ? (
               <div className="relative cursor-pointer overflow-hidden rounded-md border">
-                {imageLoading.after && (
+                {imageLoading.after && !imageError.after && (
                   <Skeleton className="aspect-video w-full" />
                 )}
+                {imageError.after ? (
+                  <div
+                    className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg bg-muted/30 text-muted-foreground"
+                    data-testid="evidence-after-error"
+                  >
+                    <ImageOff className="h-8 w-8" />
+                    <span className="text-xs">Image unavailable</span>
+                  </div>
+                ) : (
                 <img
                   src={evidence.after_image_url}
                   alt="After inventory"
@@ -130,8 +154,12 @@ export function InventoryEvidencePanel({ evidence }: InventoryEvidencePanelProps
                   data-testid="evidence-after"
                   onClick={() => setFullscreenImage(evidence.after_image_url!)}
                   onLoad={() => setImageLoading((prev) => ({ ...prev, after: false }))}
-                  onError={() => setImageLoading((prev) => ({ ...prev, after: false }))}
+                  onError={() => {
+                    setImageError((prev) => ({ ...prev, after: true }));
+                    setImageLoading((prev) => ({ ...prev, after: false }));
+                  }}
                 />
+                )}
                 {showOverlays && evidence.overlays?.after?.map((overlay, i) => (
                   <div
                     key={i}

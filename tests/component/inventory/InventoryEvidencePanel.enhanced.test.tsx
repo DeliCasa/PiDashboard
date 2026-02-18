@@ -44,7 +44,7 @@ describe('InventoryEvidencePanel - Partial Evidence States', () => {
     render(<InventoryEvidencePanel evidence={null} />);
 
     expect(screen.getByTestId('evidence-no-images')).toBeInTheDocument();
-    expect(screen.getByText('No evidence images available for this session')).toBeInTheDocument();
+    expect(screen.getByTestId('evidence-no-images')).toHaveTextContent('No evidence images available for this session');
   });
 
   it('shows both images when both present', () => {
