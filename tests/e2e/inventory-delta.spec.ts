@@ -282,11 +282,11 @@ test.describe('Inventory Review Flow', () => {
     await expect(mockedPage.getByTestId('run-detail')).toBeVisible({ timeout: 10000 });
     await expect(mockedPage.getByTestId('review-approve-btn')).toBeVisible();
 
+    // Re-mock as approved BEFORE clicking approve (refetch fires immediately)
+    await mockSessionDelta(mockedPage, mockInventoryData.approved);
+
     // Click Approve
     await mockedPage.getByTestId('review-approve-btn').click();
-
-    // Re-mock as approved for the refetch
-    await mockSessionDelta(mockedPage, mockInventoryData.approved);
 
     // Should eventually show the audit trail
     await expect(mockedPage.getByTestId('audit-trail')).toBeVisible({ timeout: 10000 });

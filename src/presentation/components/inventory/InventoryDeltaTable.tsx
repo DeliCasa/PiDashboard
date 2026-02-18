@@ -75,6 +75,15 @@ export function InventoryDeltaTable({ delta }: InventoryDeltaTableProps) {
 
   return (
     <div data-testid="inventory-delta-table">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge
+          variant="outline"
+          data-testid="delta-item-count"
+        >
+          {delta.length} {delta.length === 1 ? 'item' : 'items'}
+        </Badge>
+      </div>
+
       {isLowConfidence && (
         <Alert variant="destructive" className="mb-4" data-testid="low-confidence-banner">
           <AlertTriangle className="h-4 w-4" />

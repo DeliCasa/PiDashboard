@@ -165,6 +165,11 @@ export const ERROR_MESSAGES: Record<ErrorCode | string, string> = {
   REVIEW_CONFLICT: 'This analysis has already been reviewed.',
   REVIEW_INVALID: 'Review data is invalid. Please check your corrections.',
 
+  // Re-run Errors (055-session-review-drilldown)
+  RERUN_NOT_SUPPORTED: 'Re-run is not available for this analysis.',
+  RERUN_IN_PROGRESS: 'A re-run is already in progress for this analysis.',
+  RERUN_FAILED: 'Failed to start re-run. Please try again.',
+
   // Container Errors (043-container-management)
   CONTAINER_NOT_FOUND: 'Container not found. It may have been deleted.',
   CONTAINER_HAS_CAMERAS: 'Cannot delete container with assigned cameras.',
@@ -389,11 +394,14 @@ export function getErrorCategory(code: ErrorCode | string): ErrorCategory {
     return 'onboard';
   }
 
-  // Inventory errors (047-inventory-delta-viewer)
+  // Inventory errors (047-inventory-delta-viewer, 055-session-review-drilldown)
   if (
     code === 'INVENTORY_NOT_FOUND' ||
     code === 'REVIEW_CONFLICT' ||
-    code === 'REVIEW_INVALID'
+    code === 'REVIEW_INVALID' ||
+    code === 'RERUN_NOT_SUPPORTED' ||
+    code === 'RERUN_IN_PROGRESS' ||
+    code === 'RERUN_FAILED'
   ) {
     return 'inventory';
   }

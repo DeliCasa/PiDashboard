@@ -62,7 +62,7 @@ describe('InventoryEvidencePanel', () => {
     render(<InventoryEvidencePanel evidence={null} />);
 
     expect(screen.getByTestId('evidence-no-images')).toBeInTheDocument();
-    expect(screen.getByText('No evidence images available')).toBeInTheDocument();
+    expect(screen.getByText('No evidence images available for this session')).toBeInTheDocument();
   });
 
   it('shows "No evidence images" when no URLs present', () => {
