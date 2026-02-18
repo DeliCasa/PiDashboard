@@ -390,7 +390,7 @@ describe('InventoryRunDetail — error status (T014)', () => {
 // ============================================================================
 
 describe('InventoryRunDetail — not-found error (T015)', () => {
-  it('shows error state with "Failed to load" for 404 response', async () => {
+  it('shows not-found state for 404 response', async () => {
     server.use(
       http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
         return HttpResponse.json(
@@ -409,10 +409,79 @@ describe('InventoryRunDetail — not-found error (T015)', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('run-detail-error')).toBeInTheDocument();
+      expect(screen.getByTestId('run-detail-not-found')).toBeInTheDocument();
     }, { timeout: 15_000 });
 
-    expect(screen.getByText('Failed to load run details')).toBeInTheDocument();
+    expect(screen.getByText('No analysis found for this session')).toBeInTheDocument();
+  }, 20_000);
+});
+
+// ============================================================================
+// Feature 056: Session Not Found Differentiation (T005)
+// ============================================================================
+
+describe('InventoryRunDetail — session not found (Feature 056)', () => {
+  const notFoundResponse = {
+    success: false,
+    error: { code: 'INVENTORY_NOT_FOUND', message: 'Not found', retryable: false },
+    timestamp: new Date().toISOString(),
+  };
+
+  it('shows not-found view when API returns INVENTORY_NOT_FOUND', async () => {
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        return HttpResponse.json(notFoundResponse, { status: 404 });
+      })
+    );
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="nonexistent-session" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail-not-found')).toBeInTheDocument();
+    }, { timeout: 15_000 });
+
+    expect(screen.getByText('No analysis found for this session')).toBeInTheDocument();
+    expect(screen.getByText(/session may not have been analyzed/)).toBeInTheDocument();
+  }, 20_000);
+
+  it('not-found view does not show Retry button', async () => {
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        return HttpResponse.json(notFoundResponse, { status: 404 });
+      })
+    );
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="nonexistent-session" onBack={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail-not-found')).toBeInTheDocument();
+    }, { timeout: 15_000 });
+
+    expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+  }, 20_000);
+
+  it('not-found view shows Back button that calls onBack', async () => {
+    const onBack = vi.fn();
+    server.use(
+      http.get(`${BASE_URL}/v1/sessions/:sessionId/inventory-delta`, () => {
+        return HttpResponse.json(notFoundResponse, { status: 404 });
+      })
+    );
+
+    renderWithProviders(
+      <InventoryRunDetail sessionId="nonexistent-session" onBack={onBack} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('run-detail-not-found')).toBeInTheDocument();
+    }, { timeout: 15_000 });
+
+    await userEvent.click(screen.getByTestId('run-detail-back'));
+    expect(onBack).toHaveBeenCalledTimes(1);
   }, 20_000);
 });
 

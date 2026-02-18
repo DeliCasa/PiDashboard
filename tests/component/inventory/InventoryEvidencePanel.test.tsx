@@ -62,7 +62,7 @@ describe('InventoryEvidencePanel', () => {
     render(<InventoryEvidencePanel evidence={null} />);
 
     expect(screen.getByTestId('evidence-no-images')).toBeInTheDocument();
-    expect(screen.getByText('No evidence images available for this session')).toBeInTheDocument();
+    expect(screen.getByTestId('evidence-no-images')).toHaveTextContent('No evidence images available for this session');
   });
 
   it('shows "No evidence images" when no URLs present', () => {
@@ -129,5 +129,45 @@ describe('InventoryEvidencePanel', () => {
     // Images should be visible (not hidden)
     expect(screen.getByTestId('evidence-before')).not.toHaveClass('hidden');
     expect(screen.getByTestId('evidence-after')).not.toHaveClass('hidden');
+  });
+
+  // ==========================================================================
+  // Feature 056: Image Load Failure & Empty State Next Action (T004)
+  // ==========================================================================
+
+  it('shows error placeholder when before image fails to load', () => {
+    render(<InventoryEvidencePanel evidence={fullEvidence} />);
+
+    fireEvent.error(screen.getByTestId('evidence-before'));
+
+    expect(screen.getByTestId('evidence-before-error')).toBeInTheDocument();
+    expect(screen.getByTestId('evidence-before-error')).toHaveTextContent('Image unavailable');
+  });
+
+  it('shows error placeholder when after image fails to load', () => {
+    render(<InventoryEvidencePanel evidence={fullEvidence} />);
+
+    fireEvent.error(screen.getByTestId('evidence-after'));
+
+    expect(screen.getByTestId('evidence-after-error')).toBeInTheDocument();
+    expect(screen.getByTestId('evidence-after-error')).toHaveTextContent('Image unavailable');
+  });
+
+  it('shows both error placeholders when both images fail', () => {
+    render(<InventoryEvidencePanel evidence={fullEvidence} />);
+
+    fireEvent.error(screen.getByTestId('evidence-before'));
+    fireEvent.error(screen.getByTestId('evidence-after'));
+
+    expect(screen.getByTestId('evidence-before-error')).toBeInTheDocument();
+    expect(screen.getByTestId('evidence-after-error')).toBeInTheDocument();
+  });
+
+  it('evidence empty state includes suggested next action', () => {
+    render(<InventoryEvidencePanel evidence={null} />);
+
+    expect(screen.getByTestId('evidence-no-images')).toHaveTextContent(
+      'Check if the camera was online during this session'
+    );
   });
 });

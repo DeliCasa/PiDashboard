@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, RefreshCw, AlertCircle, Loader2, Copy, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle, Loader2, Copy, RotateCcw, SearchX } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Card,
@@ -89,7 +89,33 @@ export function InventoryRunDetail({ sessionId, onBack }: InventoryRunDetailProp
     );
   }
 
-  // Error state
+  // Session not found (API returned null without an error)
+  if (!isLoading && !isError && !data) {
+    return (
+      <div data-testid="run-detail-not-found" className="space-y-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          data-testid="run-detail-back"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to list
+        </Button>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <SearchX className="mb-3 h-10 w-10 text-muted-foreground/50" />
+            <p className="mb-1 text-muted-foreground">No analysis found for this session</p>
+            <p className="text-sm text-muted-foreground/70">
+              The session may not have been analyzed yet, or the ID may be incorrect.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state (API failure)
   if (isError || !data) {
     const isAuthError = V1ApiError.isV1ApiError(queryError) && queryError.isAuthError();
 

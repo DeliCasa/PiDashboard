@@ -493,6 +493,7 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (documentation-only feature) (051-inventory-delta-e2e-verify)
 - TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner (051-inventory-delta-e2e-verify)
 - N/A (API-driven; active container via localStorage/Zustand from Feature 046) (052-delta-viewer-e2e)
+- N/A (API-driven; active container selection via localStorage/Zustand from Feature 046) (056-session-drilldown-e2e)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -507,8 +508,8 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 056-session-drilldown-e2e: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
 - 055-session-review-drilldown: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
-- 053-delta-correction-flow: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
 - 053-delta-correction-flow: Added TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, Zod 3.x, shadcn/ui (Radix UI), Tailwind CSS v4, lucide-react, sonner
   - `isFeatureUnavailable()` helper for 404/503 graceful degradation
   - Enhanced E2E mock infrastructure (`mockEndpoint`, error scenario presets)
