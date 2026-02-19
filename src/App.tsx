@@ -16,6 +16,7 @@ import {
   Stethoscope,
   Package,
   ClipboardList,
+  Eye,
 } from "lucide-react";
 
 // Presentation layer components (hexagonal architecture)
@@ -32,6 +33,7 @@ import { BatchProvisioningSection } from "@/presentation/components/provisioning
 import { DiagnosticsSection } from "@/presentation/components/diagnostics/DiagnosticsSection";
 import { ContainerSection } from "@/presentation/components/containers/ContainerSection";
 import { InventorySection } from "@/presentation/components/inventory/InventorySection";
+import { OperationsView } from "@/presentation/components/operations/OperationsView";
 import { ContainerPicker } from "@/presentation/components/containers/ContainerPicker";
 import { useBatchProvisioningEnabled } from "@/application/stores/features";
 // 030-dashboard-recovery: Error boundary to catch uncaught exceptions
@@ -73,6 +75,10 @@ function Dashboard() {
             <TabsTrigger value="overview" className="gap-2">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="operations" className="gap-2" data-testid="tab-operations">
+              <Eye className="h-4 w-4" />
+              <span className="hidden sm:inline">Operations</span>
             </TabsTrigger>
             <TabsTrigger value="system" className="gap-2">
               <Activity className="h-4 w-4" />
@@ -137,6 +143,13 @@ function Dashboard() {
                 <CameraSection />
                 <DoorSection />
               </div>
+            </ErrorBoundary>
+          </TabsContent>
+
+          {/* Operations Tab - 057-live-ops-viewer */}
+          <TabsContent value="operations">
+            <ErrorBoundary>
+              <OperationsView />
             </ErrorBoundary>
           </TabsContent>
 

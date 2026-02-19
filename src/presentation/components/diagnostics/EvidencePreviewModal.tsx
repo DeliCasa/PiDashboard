@@ -1,6 +1,7 @@
 /**
  * EvidencePreviewModal Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
+ * Feature: 057-live-ops-viewer (Phase 4) - Debug Info section
  *
  * Full-screen image preview modal for evidence captures.
  */
@@ -14,9 +15,39 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Camera, Clock, Download, ImageOff, X } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Camera,
+  Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  Download,
+  ExternalLink,
+  ImageOff,
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
 import { formatTime } from '@/lib/diagnostics-utils';
+
+/**
+ * Extract the object key from a presigned URL by parsing the pathname.
+ * Removes the leading "/" and decodes URI-encoded characters.
+ */
+function extractObjectKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return decodeURIComponent(parsed.pathname.slice(1)); // Remove leading /
+  } catch {
+    return url;
+  }
+}
 
 interface EvidencePreviewModalProps {
   evidence: EvidenceCapture | null;
@@ -28,6 +59,8 @@ type LoadState = 'loading' | 'loaded' | 'error';
 
 export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePreviewModalProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   const handleLoad = () => {
     setLoadState('loaded');
@@ -47,6 +80,19 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleCopyObjectKey = async () => {
+    if (!evidence) return;
+    const objectKey = extractObjectKey(evidence.full_url);
+    try {
+      await navigator.clipboard.writeText(objectKey);
+      setKeyCopied(true);
+      toast.success('Object key copied');
+      setTimeout(() => setKeyCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy');
+    }
   };
 
   // Reset load state when evidence changes
@@ -132,6 +178,64 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
             Download
           </Button>
         </div>
+
+        {/* Debug Info */}
+        <Collapsible
+          open={debugOpen}
+          onOpenChange={setDebugOpen}
+          data-testid="evidence-debug-info"
+        >
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-between px-2 hover:bg-muted/50"
+            >
+              <span className="text-xs text-muted-foreground">Debug Info</span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 text-muted-foreground transition-transform',
+                  debugOpen && 'rotate-180'
+                )}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3 mt-1">
+              <div>
+                <span className="text-xs text-muted-foreground">Object Key</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <code className="font-mono text-xs break-all flex-1">
+                    {extractObjectKey(evidence.full_url)}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={handleCopyObjectKey}
+                    aria-label="Copy object key"
+                  >
+                    {keyCopied ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => window.open(evidence.full_url, '_blank')}
+                data-testid="evidence-open-raw"
+              >
+                <ExternalLink className="h-3 w-3 mr-1.5" />
+                Open raw
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </DialogContent>
     </Dialog>
   );
