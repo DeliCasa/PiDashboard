@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Clock, Camera, AlertTriangle, Package, ChevronDown, Image } from 'lucide-react';
+import { Clock, Camera, AlertTriangle, Package, ChevronDown, Image, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import type { SessionWithStale } from '@/infrastructure/api/diagnostics-schemas';
 import { EvidencePanel } from './EvidencePanel';
 import { cn } from '@/lib/utils';
@@ -31,7 +32,7 @@ function getStatusBadge(status: string, isStale?: boolean): { label: string; var
     case 'completed':
       return { label: 'Completed', variant: 'secondary' };
     case 'cancelled':
-      return { label: 'Cancelled', variant: 'outline' };
+      return { label: 'Failed', variant: 'destructive' };
     default:
       return { label: status, variant: 'outline' };
   }
@@ -76,6 +77,7 @@ function formatRelativeTime(isoString: string): string {
 
 export function SessionCard({ session, onSelect, showEvidence = false }: SessionCardProps) {
   const [isEvidenceOpen, setIsEvidenceOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { label: statusLabel, variant: statusVariant } = getStatusBadge(session.status, session.is_stale);
   const isActive = session.status === 'active';
   const hasCaptures = session.capture_count > 0;
@@ -87,6 +89,19 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
     }
     if (onSelect) {
       onSelect(session.id);
+    }
+  };
+
+  const handleCopyCorrelation = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!session.delivery_id) return;
+    try {
+      await navigator.clipboard.writeText(session.delivery_id);
+      setCopied(true);
+      toast.success('Copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy');
     }
   };
 
@@ -114,11 +129,27 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {/* Delivery ID */}
+        {/* Correlation ID (copy-able delivery_id) */}
         {session.delivery_id && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="delivery-id">
-            <Package className="h-4 w-4" />
-            <span className="truncate">{session.delivery_id}</span>
+          <div
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+            data-testid="session-card-correlation"
+          >
+            <Package className="h-4 w-4 shrink-0" />
+            <span className="font-mono text-xs truncate">{session.delivery_id}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0"
+              onClick={handleCopyCorrelation}
+              aria-label="Copy correlation ID"
+            >
+              {copied ? (
+                <Check className="h-3 w-3 text-green-500" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
           </div>
         )}
 

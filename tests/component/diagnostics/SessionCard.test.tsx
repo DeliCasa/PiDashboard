@@ -84,16 +84,17 @@ describe('SessionCard', () => {
       expect(screen.getByTestId('session-card-sess-12345')).toBeInTheDocument();
     });
 
-    it('should display delivery ID when present', () => {
+    it('should display delivery ID with copy button when present', () => {
       render(<SessionCard session={activeSessionRecent} />);
 
-      expect(screen.getByTestId('delivery-id')).toHaveTextContent('del-67890');
+      expect(screen.getByTestId('session-card-correlation')).toHaveTextContent('del-67890');
+      expect(screen.getByLabelText('Copy correlation ID')).toBeInTheDocument();
     });
 
     it('should not display delivery ID when not present', () => {
       render(<SessionCard session={sessionNoDelivery} />);
 
-      expect(screen.queryByTestId('delivery-id')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('session-card-correlation')).not.toBeInTheDocument();
     });
 
     it('should display started at time', () => {
@@ -142,10 +143,10 @@ describe('SessionCard', () => {
       expect(screen.getByTestId('session-status')).toHaveTextContent('Completed');
     });
 
-    it('should show Cancelled badge for cancelled session', () => {
+    it('should show Failed badge for cancelled session', () => {
       render(<SessionCard session={cancelledSession} />);
 
-      expect(screen.getByTestId('session-status')).toHaveTextContent('Cancelled');
+      expect(screen.getByTestId('session-status')).toHaveTextContent('Failed');
     });
   });
 
