@@ -1,5 +1,6 @@
 /**
  * SessionListView Component - Operations Panel
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Displays a filterable, refreshable list of sessions with status tabs.
  * Uses useSessions hook for data fetching and useRefreshSessions for manual refresh.
@@ -14,7 +15,7 @@ import { RefreshCw, AlertCircle, FolderOpen, Info } from 'lucide-react';
 import { useSessions, useRefreshSessions } from '@/application/hooks/useSessions';
 import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { SessionCard } from '@/presentation/components/diagnostics/SessionCard';
-import type { SessionWithStale } from '@/infrastructure/api/diagnostics-schemas';
+import type { SessionWithStale, SessionStatus } from '@/infrastructure/api/diagnostics-schemas';
 import { cn } from '@/lib/utils';
 
 interface SessionListViewProps {
@@ -22,20 +23,21 @@ interface SessionListViewProps {
 }
 
 /**
- * Map tab values to the query status parameter.
- * "failed" in the UI corresponds to "cancelled" in the API.
+ * Map tab values to the V1 query status parameter.
  */
-const TAB_STATUS_MAP: Record<string, 'active' | 'completed' | 'cancelled' | 'all'> = {
+const TAB_STATUS_MAP: Record<string, SessionStatus | 'all'> = {
   all: 'all',
   active: 'active',
-  completed: 'completed',
-  failed: 'cancelled',
+  complete: 'complete',
+  partial: 'partial',
+  failed: 'failed',
 };
 
 const TABS = [
   { value: 'all', label: 'All' },
   { value: 'active', label: 'Active' },
-  { value: 'completed', label: 'Completed' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'partial', label: 'Partial' },
   { value: 'failed', label: 'Failed' },
 ] as const;
 
@@ -186,7 +188,7 @@ function SessionList({
     <div className="space-y-3">
       {sessions.map((session) => (
         <SessionCard
-          key={session.id}
+          key={session.session_id}
           session={session}
           onSelect={onSessionSelect}
         />
@@ -231,10 +233,12 @@ function getCountForTab(
       return sessions.length;
     case 'active':
       return sessions.filter((s) => s.status === 'active').length;
-    case 'completed':
-      return sessions.filter((s) => s.status === 'completed').length;
+    case 'complete':
+      return sessions.filter((s) => s.status === 'complete').length;
+    case 'partial':
+      return sessions.filter((s) => s.status === 'partial').length;
     case 'failed':
-      return sessions.filter((s) => s.status === 'cancelled').length;
+      return sessions.filter((s) => s.status === 'failed').length;
     default:
       return 0;
   }

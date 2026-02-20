@@ -1,8 +1,10 @@
 /**
  * EvidencePanel Container Scoping Tests
  * Feature: 046-opaque-container-identity (T020)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests evidence filtering by active container's camera IDs.
+ * Uses V1 CaptureEntry format with device_id instead of camera_id.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -11,6 +13,7 @@ import { EvidencePanel } from '@/presentation/components/diagnostics/EvidencePan
 import { useActiveContainerStore } from '@/application/stores/activeContainer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import type { CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 
 // Mock the evidence hook
 vi.mock('@/application/hooks/useEvidence', () => ({
@@ -27,42 +30,59 @@ vi.mock('@/application/hooks/useContainers', () => ({
 import { useSessionEvidence } from '@/application/hooks/useEvidence';
 import { useContainerCameraIds } from '@/application/hooks/useContainers';
 
-const mockEvidence = [
+// Small base64 stub
+const STUB_BASE64 =
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof';
+
+// V1 CaptureEntry fixtures
+const mockEvidence: CaptureEntry[] = [
   {
-    id: 'ev-1',
+    evidence_id: 'ev-1',
+    capture_tag: 'BEFORE_OPEN',
+    status: 'captured',
+    device_id: 'espcam-aaa001',
+    container_id: 'ctr-session-1',
     session_id: 'session-1',
-    captured_at: '2026-01-01T00:00:00Z',
-    camera_id: 'espcam-aaa001',
-    thumbnail_url: 'https://example.com/thumb/1',
-    full_url: 'https://example.com/full/1',
-    expires_at: '2026-01-02T00:00:00Z',
+    created_at: '2026-01-01T00:00:00Z',
+    image_data: STUB_BASE64,
+    content_type: 'image/jpeg',
+    image_size_bytes: 10000,
   },
   {
-    id: 'ev-2',
+    evidence_id: 'ev-2',
+    capture_tag: 'AFTER_CLOSE',
+    status: 'captured',
+    device_id: 'espcam-aaa001',
+    container_id: 'ctr-session-1',
     session_id: 'session-1',
-    captured_at: '2026-01-01T00:01:00Z',
-    camera_id: 'espcam-aaa001',
-    thumbnail_url: 'https://example.com/thumb/2',
-    full_url: 'https://example.com/full/2',
-    expires_at: '2026-01-02T00:00:00Z',
+    created_at: '2026-01-01T00:01:00Z',
+    image_data: STUB_BASE64,
+    content_type: 'image/jpeg',
+    image_size_bytes: 10000,
   },
   {
-    id: 'ev-3',
+    evidence_id: 'ev-3',
+    capture_tag: 'BEFORE_OPEN',
+    status: 'captured',
+    device_id: 'espcam-bbb002',
+    container_id: 'ctr-session-1',
     session_id: 'session-1',
-    captured_at: '2026-01-01T00:02:00Z',
-    camera_id: 'espcam-bbb002',
-    thumbnail_url: 'https://example.com/thumb/3',
-    full_url: 'https://example.com/full/3',
-    expires_at: '2026-01-02T00:00:00Z',
+    created_at: '2026-01-01T00:02:00Z',
+    image_data: STUB_BASE64,
+    content_type: 'image/jpeg',
+    image_size_bytes: 10000,
   },
   {
-    id: 'ev-4',
+    evidence_id: 'ev-4',
+    capture_tag: 'AFTER_CLOSE',
+    status: 'captured',
+    device_id: 'espcam-ccc003',
+    container_id: 'ctr-session-1',
     session_id: 'session-1',
-    captured_at: '2026-01-01T00:03:00Z',
-    camera_id: 'espcam-ccc003',
-    thumbnail_url: 'https://example.com/thumb/4',
-    full_url: 'https://example.com/full/4',
-    expires_at: '2026-01-02T00:00:00Z',
+    created_at: '2026-01-01T00:03:00Z',
+    image_data: STUB_BASE64,
+    content_type: 'image/jpeg',
+    image_size_bytes: 10000,
   },
 ];
 
@@ -109,7 +129,7 @@ describe('EvidencePanel - Container Scoping', () => {
     expect(screen.getByTestId('evidence-count')).toHaveTextContent('(4)');
   });
 
-  it('filters evidence to container cameras when container is active', () => {
+  it('filters evidence to container cameras (device_id) when container is active', () => {
     // Container has only espcam-aaa001
     vi.mocked(useContainerCameraIds).mockReturnValue(new Set(['espcam-aaa001']));
 

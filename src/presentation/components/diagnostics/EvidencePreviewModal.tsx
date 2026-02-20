@@ -2,14 +2,13 @@
  * EvidencePreviewModal Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
  * Feature: 057-live-ops-viewer (Phase 4) - Debug Info section
- * Feature: 058 - Presigned URL auto-refresh on expiration error
+ * Feature: 059-real-ops-drilldown - V1 CaptureEntry schema reconciliation
  *
  * Full-screen image preview modal for evidence captures.
- * Automatically attempts to refresh presigned URLs when image loading fails
- * due to URL expiration. Falls back to a permanent error state with retry.
+ * Displays base64-encoded images from CaptureEntry with download and debug info.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,59 +29,45 @@ import {
   Clock,
   Copy,
   Download,
-  ExternalLink,
   ImageOff,
   RefreshCw,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
+import type { CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 import { formatTime } from '@/lib/diagnostics-utils';
+import { getImageSrc } from '@/infrastructure/api/evidence';
 import { evidenceApi } from '@/infrastructure/api/evidence';
 
-/**
- * Extract the object key from a presigned URL by parsing the pathname.
- * Removes the leading "/" and decodes URI-encoded characters.
- */
-function extractObjectKey(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return decodeURIComponent(parsed.pathname.slice(1)); // Remove leading /
-  } catch {
-    return url;
-  }
-}
-
 interface EvidencePreviewModalProps {
-  evidence: EvidenceCapture | null;
+  evidence: CaptureEntry | null;
   open: boolean;
   onClose: () => void;
 }
 
-type LoadState = 'loading' | 'loaded' | 'error' | 'refreshing' | 'failed';
+type LoadState = 'loading' | 'loaded' | 'failed';
 
 export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePreviewModalProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [debugOpen, setDebugOpen] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
-  const [imageSrc, setImageSrc] = useState<string>(evidence?.full_url ?? '');
-  const hasAutoRetried = useRef(false);
+  const [imageSrc, setImageSrc] = useState<string>(
+    evidence ? getImageSrc(evidence) : ''
+  );
 
-  // Reset imageSrc and retry state when evidence changes
+  // Reset imageSrc when evidence changes
   useEffect(() => {
     if (evidence) {
-      setImageSrc(evidence.full_url);
-      hasAutoRetried.current = false;
+      setImageSrc(getImageSrc(evidence));
       setLoadState('loading');
     }
-  }, [evidence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [evidence?.evidence_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
       const timeout = setTimeout(() => setLoadState('loading'), 100);
-      hasAutoRetried.current = false;
       return () => clearTimeout(timeout);
     }
   }, [open]);
@@ -91,56 +76,35 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
     setLoadState('loaded');
   };
 
-  const handleError = async () => {
-    if (!evidence) return;
-
-    if (hasAutoRetried.current) {
-      setLoadState('failed');
-      return;
-    }
-
-    hasAutoRetried.current = true;
-    setLoadState('refreshing');
-
-    try {
-      const objectKey = extractObjectKey(evidence.full_url);
-      const result = await evidenceApi.refreshPresignedUrl(objectKey);
-
-      if (result) {
-        setImageSrc(result.url);
-        setLoadState('loading');
-      } else {
-        setLoadState('failed');
-      }
-    } catch {
-      setLoadState('failed');
-    }
+  const handleError = () => {
+    setLoadState('failed');
   };
 
   const handleRetry = () => {
     if (!evidence) return;
-    hasAutoRetried.current = false;
-    setImageSrc(evidence.full_url);
+    setImageSrc(getImageSrc(evidence));
     setLoadState('loading');
   };
 
   const handleDownload = () => {
-    if (!evidence) return;
-
-    const link = document.createElement('a');
-    link.href = imageSrc;
-    link.download = `evidence-${evidence.id}.jpg`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (!evidence?.image_data) return;
+    const blob = evidenceApi.captureEntryToBlob(evidence);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const filename = evidenceApi.getCaptureFilename(evidence);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleCopyObjectKey = async () => {
-    if (!evidence) return;
-    const objectKey = extractObjectKey(evidence.full_url);
+    if (!evidence?.object_key) return;
     try {
-      await navigator.clipboard.writeText(objectKey);
+      await navigator.clipboard.writeText(evidence.object_key);
       setKeyCopied(true);
       toast.success('Object key copied');
       setTimeout(() => setKeyCopied(false), 2000);
@@ -159,7 +123,7 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
       >
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle className="text-sm font-mono">
-            Evidence: {evidence.id}
+            Evidence: {evidence.evidence_id}
           </DialogTitle>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -168,8 +132,8 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
 
         {/* Image container */}
         <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden">
-          {/* Loading / Refreshing state */}
-          {(loadState === 'loading' || loadState === 'refreshing') && (
+          {/* Loading state */}
+          {loadState === 'loading' && (
             <div className="absolute inset-0">
               <Skeleton className="w-full h-full" />
             </div>
@@ -196,21 +160,10 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
             </div>
           )}
 
-          {/* Legacy error state (transient, before auto-retry completes) */}
-          {loadState === 'error' && (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground"
-              data-testid="preview-error"
-            >
-              <ImageOff className="h-12 w-12 mb-2" />
-              <span className="text-sm">Failed to load full image</span>
-            </div>
-          )}
-
           {/* Actual image */}
           <img
             src={imageSrc}
-            alt={`Evidence ${evidence.id}`}
+            alt={`Evidence ${evidence.evidence_id}`}
             className={`w-full h-full object-contain ${
               loadState !== 'loaded' ? 'invisible absolute' : ''
             }`}
@@ -224,15 +177,15 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1" data-testid="preview-camera">
               <Camera className="h-4 w-4" />
-              <span>{evidence.camera_id}</span>
+              <span>{evidence.device_id}</span>
             </div>
             <div className="flex items-center gap-1" data-testid="preview-timestamp">
               <Clock className="h-4 w-4" />
-              <span>{formatTime(evidence.captured_at)}</span>
+              <span>{formatTime(evidence.created_at)}</span>
             </div>
-            {evidence.size_bytes && (
+            {evidence.image_size_bytes && (
               <span data-testid="preview-size">
-                {(evidence.size_bytes / 1024).toFixed(1)} KB
+                {(evidence.image_size_bytes / 1024).toFixed(1)} KB
               </span>
             )}
           </div>
@@ -274,7 +227,7 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
                 <span className="text-xs text-muted-foreground">Object Key</span>
                 <div className="flex items-center gap-2 mt-0.5">
                   <code className="font-mono text-xs break-all flex-1">
-                    {extractObjectKey(evidence.full_url)}
+                    {evidence.object_key ?? 'N/A'}
                   </code>
                   <Button
                     variant="ghost"
@@ -291,16 +244,12 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
                   </Button>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => window.open(evidence.full_url, '_blank')}
-                data-testid="evidence-open-raw"
-              >
-                <ExternalLink className="h-3 w-3 mr-1.5" />
-                Open raw
-              </Button>
+              <div className="text-xs text-muted-foreground">
+                <span>Status: {evidence.status}</span>
+                {evidence.capture_tag && (
+                  <span className="ml-3">Tag: {evidence.capture_tag}</span>
+                )}
+              </div>
             </div>
           </CollapsibleContent>
         </Collapsible>

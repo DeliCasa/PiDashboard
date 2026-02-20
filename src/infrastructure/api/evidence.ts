@@ -1,16 +1,18 @@
 /**
- * Evidence API Client - DEV Observability Panels + Camera Diagnostics
- * Feature: 038-dev-observability-panels, 042-diagnostics-integration
+ * Evidence API Client - Real Ops Drilldown + Camera Diagnostics
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
+ * Feature: 042-diagnostics-integration (camera evidence capture)
  *
- * Provides evidence capture listing, presigned URL functions, and camera evidence capture.
+ * Provides evidence listing, base64 image helpers, and camera evidence capture.
  * Evidence captures are images from ESP32-CAM devices during sessions.
  */
 
-import { apiClient, ApiError, buildUrl, isFeatureUnavailable } from './client';
+import { apiClient, ApiError, isFeatureUnavailable } from './client';
 import {
-  EvidenceListResponseSchema,
-  PresignResponseSchema,
-  type EvidenceCapture,
+  SessionEvidenceResponseSchema,
+  EvidencePairResponseSchema,
+  type CaptureEntry,
+  type EvidencePair,
 } from './diagnostics-schemas';
 import {
   CapturedEvidenceResponseSchema,
@@ -22,13 +24,30 @@ import type {
 } from '@/domain/types/camera-diagnostics';
 import { safeParseWithErrors } from './schemas';
 
-interface ListEvidenceOptions {
-  limit?: number;
+/**
+ * Get a displayable image source from a capture entry.
+ * Returns base64 data URI when image_data is present, empty string otherwise.
+ */
+export function getImageSrc(capture: CaptureEntry): string {
+  if (capture.image_data) {
+    const contentType = capture.content_type || 'image/jpeg';
+    return `data:${contentType};base64,${capture.image_data}`;
+  }
+  return '';
 }
 
-interface PresignedUrlResult {
-  url: string;
-  expires_at: string;
+/**
+ * Check if a capture has displayable image data
+ */
+export function hasImageData(capture: CaptureEntry): boolean {
+  return !!capture.image_data;
+}
+
+/**
+ * Check if a capture has only S3 storage (no inline image)
+ */
+export function isS3Only(capture: CaptureEntry): boolean {
+  return !capture.image_data && !!capture.object_key;
 }
 
 /**
@@ -36,34 +55,29 @@ interface PresignedUrlResult {
  */
 export const evidenceApi = {
   /**
-   * List evidence captures for a session
+   * List evidence captures for a session (V1 endpoint)
    */
-  listSessionEvidence: async (
-    sessionId: string,
-    options: ListEvidenceOptions = {}
-  ): Promise<EvidenceCapture[]> => {
+  listSessionEvidence: async (sessionId: string): Promise<CaptureEntry[]> => {
     try {
-      const endpoint = buildUrl(`/dashboard/diagnostics/sessions/${sessionId}/evidence`, {
-        limit: options.limit || 50,
-      });
+      const response = await apiClient.get<unknown>(
+        `/v1/sessions/${sessionId}/evidence`
+      );
 
-      const response = await apiClient.get<unknown>(endpoint);
-
-      const parsed = safeParseWithErrors(EvidenceListResponseSchema, response);
+      const parsed = safeParseWithErrors(SessionEvidenceResponseSchema, response);
 
       if (!parsed.success) {
         console.warn('Evidence list response validation failed:', parsed.errors);
         return [];
       }
 
-      if (!parsed.data.success || !parsed.data.data?.evidence) {
+      if (!parsed.data.success || !parsed.data.data?.captures) {
         return [];
       }
 
-      // Sort by captured_at (most recent first)
-      return [...parsed.data.data.evidence].sort((a, b) => {
-        const dateA = new Date(a.captured_at).getTime();
-        const dateB = new Date(b.captured_at).getTime();
+      // Sort by created_at (most recent first)
+      return [...parsed.data.data.captures].sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
         return dateB - dateA;
       });
     } catch (error) {
@@ -77,25 +91,18 @@ export const evidenceApi = {
   },
 
   /**
-   * Refresh a presigned URL for an evidence item
-   * Used when the original URL has expired
+   * Get structured evidence pair for a session (V1 endpoint)
    */
-  refreshPresignedUrl: async (
-    imageKey: string,
-    expiresIn: number = 900 // 15 minutes default
-  ): Promise<PresignedUrlResult | null> => {
+  getEvidencePair: async (sessionId: string): Promise<EvidencePair | null> => {
     try {
-      const endpoint = buildUrl('/dashboard/diagnostics/images/presign', {
-        key: imageKey,
-        expiresIn,
-      });
+      const response = await apiClient.get<unknown>(
+        `/v1/sessions/${sessionId}/evidence/pair`
+      );
 
-      const response = await apiClient.get<unknown>(endpoint);
-
-      const parsed = safeParseWithErrors(PresignResponseSchema, response);
+      const parsed = safeParseWithErrors(EvidencePairResponseSchema, response);
 
       if (!parsed.success) {
-        console.warn('Presign response validation failed:', parsed.errors);
+        console.warn('Evidence pair response validation failed:', parsed.errors);
         return null;
       }
 
@@ -103,58 +110,54 @@ export const evidenceApi = {
         return null;
       }
 
-      return {
-        url: parsed.data.data.url,
-        expires_at: parsed.data.data.expires_at,
-      };
+      return parsed.data.data;
     } catch (error) {
       if (isFeatureUnavailable(error)) {
         return null;
       }
 
-      console.error('Failed to refresh presigned URL:', error);
+      console.error('Failed to fetch evidence pair:', error);
       throw error;
     }
   },
 
   /**
-   * Check if a presigned URL is expired or about to expire
-   * Returns true if URL expires within the threshold (default 1 minute)
+   * Get image source URL for a capture entry
    */
-  isUrlExpired: (expiresAt: string, thresholdMs: number = 60_000): boolean => {
-    const expirationTime = new Date(expiresAt).getTime();
-    return Date.now() + thresholdMs >= expirationTime;
-  },
+  getImageSrc,
+
+  // ==========================================================================
+  // Legacy Presigned URL Support (for InventoryEvidencePanel)
+  // ==========================================================================
 
   /**
-   * Get a fresh URL, refreshing if necessary.
-   * Extracts the object key from the presigned URL and calls refreshPresignedUrl()
-   * when the URL is expired or about to expire.
+   * Refresh a presigned URL for an evidence item.
+   * Preserved for backward compatibility with InventoryEvidencePanel (Feature 047/058).
+   * Not used by diagnostics evidence flow (Feature 059 uses base64 inline).
    */
-  getFreshUrl: async (
-    evidence: EvidenceCapture,
-    urlType: 'thumbnail' | 'full' = 'thumbnail'
-  ): Promise<string> => {
-    const url = urlType === 'thumbnail' ? evidence.thumbnail_url : evidence.full_url;
-
-    // Check if URL is still valid
-    if (!evidenceApi.isUrlExpired(evidence.expires_at)) {
-      return url;
-    }
-
-    // URL expired — extract object key and refresh
+  refreshPresignedUrl: async (
+    imageKey: string,
+    expiresIn: number = 900
+  ): Promise<{ url: string; expires_at: string } | null> => {
     try {
-      const parsedUrl = new URL(url);
-      const objectKey = decodeURIComponent(parsedUrl.pathname.slice(1));
-      const result = await evidenceApi.refreshPresignedUrl(objectKey);
-      if (result) {
-        return result.url;
-      }
-    } catch {
-      // URL parsing or refresh failed — fall through to return original
-    }
+      const endpoint = `/dashboard/diagnostics/images/presign?key=${encodeURIComponent(imageKey)}&expiresIn=${expiresIn}`;
+      const response = await apiClient.get<unknown>(endpoint);
 
-    return url;
+      // Best-effort parse — endpoint may not exist on newer PiOrchestrator
+      if (response && typeof response === 'object' && 'data' in (response as Record<string, unknown>)) {
+        const data = (response as { data?: { url?: string; expires_at?: string } }).data;
+        if (data?.url && data?.expires_at) {
+          return { url: data.url, expires_at: data.expires_at };
+        }
+      }
+      return null;
+    } catch (error) {
+      if (isFeatureUnavailable(error)) {
+        return null;
+      }
+      console.error('Failed to refresh presigned URL:', error);
+      return null;
+    }
   },
 
   // ==========================================================================
@@ -196,7 +199,6 @@ export const evidenceApi = {
       return response.data;
     } catch (error) {
       if (error instanceof ApiError) {
-        // Add context for common error codes
         if (error.status === 503) {
           throw new ApiError(
             503,
@@ -223,10 +225,48 @@ export const evidenceApi = {
   },
 
   /**
-   * Convert captured evidence to a blob for download.
-   *
-   * @param evidence - Evidence object with image_base64
-   * @returns Blob suitable for download
+   * Convert a CaptureEntry with image_data to a Blob for download.
+   */
+  captureEntryToBlob: (capture: CaptureEntry): Blob | null => {
+    if (!capture.image_data) return null;
+    const byteCharacters = atob(capture.image_data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: capture.content_type ?? 'image/jpeg' });
+  },
+
+  /**
+   * Generate a download filename for a capture entry.
+   */
+  getCaptureFilename: (capture: CaptureEntry): string => {
+    const timestamp = new Date(capture.created_at).toISOString().replace(/[:.]/g, '-');
+    return `evidence-${capture.device_id}-${capture.capture_tag}-${timestamp}.jpg`;
+  },
+
+  /**
+   * Trigger browser download of a capture entry's image.
+   */
+  downloadCapture: (capture: CaptureEntry): void => {
+    const blob = evidenceApi.captureEntryToBlob(capture);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const filename = evidenceApi.getCaptureFilename(capture);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  /**
+   * Convert CapturedEvidence (camera capture) to a blob for download.
+   * Preserved from Feature 042 for camera evidence capture workflow.
    */
   toBlob: (evidence: CapturedEvidence): Blob => {
     const byteCharacters = atob(evidence.image_base64);
@@ -239,10 +279,8 @@ export const evidenceApi = {
   },
 
   /**
-   * Generate a download filename for evidence.
-   *
-   * @param evidence - Evidence object
-   * @returns Formatted filename
+   * Generate a download filename for CapturedEvidence.
+   * Preserved from Feature 042.
    */
   getFilename: (evidence: CapturedEvidence): string => {
     const timestamp = new Date(evidence.captured_at).toISOString().replace(/[:.]/g, '-');
@@ -250,9 +288,8 @@ export const evidenceApi = {
   },
 
   /**
-   * Trigger browser download of evidence image.
-   *
-   * @param evidence - Evidence object with image_base64
+   * Trigger browser download of CapturedEvidence image.
+   * Preserved from Feature 042.
    */
   download: (evidence: CapturedEvidence): void => {
     const blob = evidenceApi.toBlob(evidence);

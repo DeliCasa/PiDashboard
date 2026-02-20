@@ -90,9 +90,9 @@ test.describe('WiFi Graceful Degradation - US2', () => {
       status: 200,
       data: { status: 'healthy', timestamp: new Date().toISOString(), buckets: {} },
     });
-    await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+    await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
       status: 200,
-      data: { success: true, data: { sessions: [] } },
+      data: { success: true, data: { sessions: [], total: 0, queried_at: new Date().toISOString() }, timestamp: new Date().toISOString() },
     });
   }
 

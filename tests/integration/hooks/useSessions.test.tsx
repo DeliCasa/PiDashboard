@@ -1,8 +1,10 @@
 /**
  * Sessions Hooks Integration Tests
- * Feature: 038-dev-observability-panels (T030)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
- * Tests for useSessions hook with MSW.
+ * Tests for useSessions/useSession hooks with MSW.
+ * V1 changes: session_id (not id), V1 endpoint URLs,
+ * useSession now filters from list endpoint (no separate detail endpoint).
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
@@ -128,19 +130,23 @@ describe('useSessions Hook', () => {
 });
 
 describe('useSession Hook', () => {
-  it('should fetch session by ID', async () => {
+  it('should fetch session by session_id from list endpoint', async () => {
     server.use(...createDiagnosticsHandlers());
 
     const queryClient = createTestQueryClient();
     const wrapper = createWrapper(queryClient);
 
-    const { result } = renderHook(() => useSession(activeSessionRecent.id), { wrapper });
+    const { result } = renderHook(
+      () => useSession(activeSessionRecent.session_id),
+      { wrapper }
+    );
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(result.current.data?.id).toBe(activeSessionRecent.id);
+    // V1: session_id field (not id)
+    expect(result.current.data?.session_id).toBe(activeSessionRecent.session_id);
     expect(result.current.data).toHaveProperty('is_stale');
   });
 

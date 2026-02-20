@@ -2,8 +2,10 @@
  * EvidencePanel Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
  * Feature: 044-evidence-ci-remediation (T031-T034) - Camera filter
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Displays evidence thumbnails for a session in a grid layout.
+ * Uses CaptureEntry (V1) with base64 inline images instead of presigned URLs.
  */
 
 import { useMemo, useState } from 'react';
@@ -23,7 +25,7 @@ import { useContainerCameraIds } from '@/application/hooks/useContainers';
 import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { EvidenceThumbnail } from './EvidenceThumbnail';
 import { EvidencePreviewModal } from './EvidencePreviewModal';
-import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
+import type { CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 import { cn } from '@/lib/utils';
 
 interface EvidencePanelProps {
@@ -32,7 +34,7 @@ interface EvidencePanelProps {
 }
 
 export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
-  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceCapture | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = useState<CaptureEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterCameraId, setFilterCameraId] = useState<string | undefined>(undefined);
 
@@ -46,27 +48,27 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
   const scopedEvidence = useMemo(() => {
     if (!evidence) return [];
     if (!containerCameraIds) return evidence;
-    return evidence.filter((ev) => containerCameraIds.has(ev.camera_id));
+    return evidence.filter((ev) => containerCameraIds.has(ev.device_id));
   }, [evidence, containerCameraIds]);
 
   // Derive unique camera IDs from scoped evidence for the filter dropdown
   const cameraIds = useMemo(() => {
     if (scopedEvidence.length === 0) return [];
-    const ids = new Set(scopedEvidence.map((ev) => ev.camera_id));
+    const ids = new Set(scopedEvidence.map((ev) => ev.device_id));
     return Array.from(ids).sort();
   }, [scopedEvidence]);
 
   // Apply client-side per-camera filter within scoped results
   const filteredEvidence = useMemo(() => {
     if (!filterCameraId) return scopedEvidence;
-    return scopedEvidence.filter((ev) => ev.camera_id === filterCameraId);
+    return scopedEvidence.filter((ev) => ev.device_id === filterCameraId);
   }, [scopedEvidence, filterCameraId]);
 
   const handleRefresh = () => {
     invalidate(sessionId);
   };
 
-  const handleThumbnailClick = (ev: EvidenceCapture) => {
+  const handleThumbnailClick = (ev: CaptureEntry) => {
     setSelectedEvidence(ev);
     setIsModalOpen(true);
   };
@@ -218,9 +220,11 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
               className="grid grid-cols-2 sm:grid-cols-3 gap-2"
               data-testid="evidence-grid"
             >
-              {filteredEvidence.map((ev) => (
+              {filteredEvidence
+                .filter((ev) => ev.status === 'captured')
+                .map((ev) => (
                 <EvidenceThumbnail
-                  key={ev.id}
+                  key={ev.evidence_id}
                   evidence={ev}
                   onClick={() => handleThumbnailClick(ev)}
                 />

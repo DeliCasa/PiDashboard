@@ -1,9 +1,11 @@
 /**
- * Zod API Validation Schemas - DEV Observability Panels
- * Feature: 038-dev-observability-panels
+ * Zod API Validation Schemas - Diagnostics
+ * Feature: 038-dev-observability-panels (original)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Runtime schema validation for diagnostics API responses.
  * Validates health checks, sessions, and evidence data.
+ * Schemas match PiOrchestrator Go struct JSON tags (Constitution II.A).
  */
 
 import { z } from 'zod';
@@ -97,32 +99,51 @@ export const AllHealthChecksSchema = z.object({
 export type AllHealthChecks = z.infer<typeof AllHealthChecksSchema>;
 
 // ============================================================================
-// Session Schemas
+// Session Schemas (V1 — matches PiOrchestrator Go structs)
 // ============================================================================
 
 /**
- * Session status enum
+ * Session status enum (PiOrchestrator values)
  */
-export const SessionStatusSchema = z.enum(['active', 'completed', 'cancelled']);
+export const SessionStatusSchema = z.enum(['active', 'complete', 'partial', 'failed']);
 
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 
 /**
- * Session entity schema
+ * Last error nested object for failed sessions
+ */
+export const LastErrorSchema = z.object({
+  phase: z.string(),
+  failure_reason: z.string(),
+  device_id: z.string(),
+  occurred_at: z.string(),
+  correlation_id: z.string().optional(),
+});
+
+export type LastError = z.infer<typeof LastErrorSchema>;
+
+/**
+ * Session diagnostic entry (V1 response shape from PiOrchestrator)
  */
 export const SessionSchema = z.object({
-  id: z.string().min(1),
-  delivery_id: z.string().optional(),
+  session_id: z.string().min(1),
+  container_id: z.string().min(1),
   started_at: z.string(),
   status: SessionStatusSchema,
-  capture_count: z.number().int().min(0),
-  last_capture_at: z.string().optional(),
+  total_captures: z.number().int().min(0),
+  successful_captures: z.number().int().min(0),
+  failed_captures: z.number().int().min(0),
+  has_before_open: z.boolean(),
+  has_after_close: z.boolean(),
+  pair_complete: z.boolean(),
+  last_error: LastErrorSchema.optional(),
+  elapsed_seconds: z.number().int().min(0),
 });
 
 export type Session = z.infer<typeof SessionSchema>;
 
 /**
- * Session with derived is_stale field
+ * Session with derived is_stale field (client-side)
  */
 export const SessionWithStaleSchema = SessionSchema.extend({
   is_stale: z.boolean().optional(),
@@ -131,77 +152,153 @@ export const SessionWithStaleSchema = SessionSchema.extend({
 export type SessionWithStale = z.infer<typeof SessionWithStaleSchema>;
 
 /**
- * Session list API response (from BridgeServer)
+ * Session list API response (V1 envelope from PiOrchestrator)
  */
 export const SessionListResponseSchema = z.object({
   success: z.boolean(),
+  status: z.string().optional(),
   data: z.object({
     sessions: z.array(SessionSchema),
+    total: z.number().int().optional(),
+    queried_at: z.string().optional(),
   }),
+  timestamp: z.string().optional(),
 });
 
 export type SessionListResponse = z.infer<typeof SessionListResponseSchema>;
 
-/**
- * Session detail API response (from BridgeServer)
- */
-export const SessionDetailResponseSchema = z.object({
-  success: z.boolean(),
-  data: SessionSchema,
-});
-
-export type SessionDetailResponse = z.infer<typeof SessionDetailResponseSchema>;
-
 // ============================================================================
-// Evidence Capture Schemas
+// Evidence Capture Schemas (V1 — matches PiOrchestrator Go structs)
 // ============================================================================
 
 /**
- * Camera ID pattern: espcam-XXXXXX (6 hex chars)
+ * Capture tag enum (evidence capture phase)
  */
-const CAMERA_ID_PATTERN = /^espcam-[0-9a-f]{6}$/i;
+export const CaptureTagSchema = z.enum([
+  'BEFORE_OPEN',
+  'AFTER_OPEN',
+  'BEFORE_CLOSE',
+  'AFTER_CLOSE',
+]);
+
+export type CaptureTag = z.infer<typeof CaptureTagSchema>;
 
 /**
- * Evidence capture entity schema
+ * Capture status enum
  */
-export const EvidenceCaptureSchema = z.object({
-  id: z.string().min(1),
-  session_id: z.string().min(1),
-  captured_at: z.string(),
-  camera_id: z.string().regex(CAMERA_ID_PATTERN, 'Invalid camera ID format'),
-  thumbnail_url: z.string().url(),
-  full_url: z.string().url(),
-  expires_at: z.string(),
-  size_bytes: z.number().positive().optional(),
+export const CaptureStatusSchema = z.enum(['captured', 'failed', 'timeout']);
+
+export type CaptureStatus = z.infer<typeof CaptureStatusSchema>;
+
+/**
+ * Upload status enum
+ */
+export const UploadStatusSchema = z.enum(['uploaded', 'failed', 'unverified']);
+
+export type UploadStatus = z.infer<typeof UploadStatusSchema>;
+
+/**
+ * Evidence capture entry (V1 response shape from PiOrchestrator)
+ */
+export const CaptureEntrySchema = z.object({
+  evidence_id: z.string().min(1),
+  capture_tag: CaptureTagSchema,
+  status: CaptureStatusSchema,
+  failure_reason: z.string().optional(),
+  device_id: z.string(),
+  container_id: z.string(),
+  session_id: z.string(),
+  created_at: z.string(),
+  image_data: z.string().optional(),
   content_type: z.string().optional(),
+  image_size_bytes: z.number().int().optional(),
+  object_key: z.string().optional(),
+  upload_status: UploadStatusSchema.optional(),
+  upload_error: z.string().optional(),
 });
 
-export type EvidenceCapture = z.infer<typeof EvidenceCaptureSchema>;
+export type CaptureEntry = z.infer<typeof CaptureEntrySchema>;
 
 /**
- * Evidence list API response (from BridgeServer)
+ * Evidence summary (included in session evidence response)
  */
-export const EvidenceListResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.object({
-    evidence: z.array(EvidenceCaptureSchema),
-  }),
+export const EvidenceSummarySchema = z.object({
+  total_captures: z.number().int().min(0),
+  successful_captures: z.number().int().min(0),
+  failed_captures: z.number().int().min(0),
+  has_before_open: z.boolean(),
+  has_after_close: z.boolean(),
+  pair_complete: z.boolean(),
 });
 
-export type EvidenceListResponse = z.infer<typeof EvidenceListResponseSchema>;
+export type EvidenceSummary = z.infer<typeof EvidenceSummarySchema>;
 
 /**
- * Presign URL API response (from BridgeServer)
+ * Session evidence API response (V1 envelope from PiOrchestrator)
  */
-export const PresignResponseSchema = z.object({
+export const SessionEvidenceResponseSchema = z.object({
   success: z.boolean(),
+  status: z.string().optional(),
   data: z.object({
-    url: z.string().url(),
-    expires_at: z.string(),
+    session_id: z.string(),
+    container_id: z.string(),
+    captures: z.array(CaptureEntrySchema),
+    summary: EvidenceSummarySchema,
   }),
+  timestamp: z.string().optional(),
 });
 
-export type PresignResponse = z.infer<typeof PresignResponseSchema>;
+export type SessionEvidenceResponse = z.infer<typeof SessionEvidenceResponseSchema>;
+
+// ============================================================================
+// Evidence Pair Schemas (V1 — structured before/after)
+// ============================================================================
+
+/**
+ * Pair status enum
+ */
+export const PairStatusSchema = z.enum(['complete', 'incomplete', 'missing']);
+
+export type PairStatus = z.infer<typeof PairStatusSchema>;
+
+/**
+ * Capture slot — extends CaptureEntry with optional pair-specific fields
+ */
+export const CaptureSlotSchema = CaptureEntrySchema.extend({
+  missing_reason: z.string().optional(),
+  failure_detail: z.string().optional(),
+  captured_at: z.string().optional(),
+});
+
+export type CaptureSlot = z.infer<typeof CaptureSlotSchema>;
+
+/**
+ * Evidence pair (structured before/after for a session)
+ */
+export const EvidencePairSchema = z.object({
+  contract_version: z.literal('v1'),
+  session_id: z.string(),
+  container_id: z.string(),
+  pair_status: PairStatusSchema,
+  before: CaptureSlotSchema.nullable(),
+  after: CaptureSlotSchema.nullable(),
+  queried_at: z.string(),
+  retry_after_seconds: z.number().optional(),
+});
+
+export type EvidencePair = z.infer<typeof EvidencePairSchema>;
+
+/**
+ * Evidence pair API response (V1 envelope)
+ */
+export const EvidencePairResponseSchema = z.object({
+  success: z.boolean(),
+  status: z.string().optional(),
+  data: EvidencePairSchema,
+  timestamp: z.string().optional(),
+});
+
+export type EvidencePairResponse = z.infer<typeof EvidencePairResponseSchema>;
 
 // ============================================================================
 // Aggregate View Model Schemas

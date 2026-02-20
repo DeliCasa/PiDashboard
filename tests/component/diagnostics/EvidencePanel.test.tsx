@@ -2,8 +2,10 @@
  * EvidencePanel Component Tests
  * Feature: 038-dev-observability-panels (T045)
  * Feature: 044-evidence-ci-remediation (T038) - Camera filter tests
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests for evidence panel with thumbnail grid and camera filtering.
+ * Uses CaptureEntry format with device_id, evidence_id fields.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -12,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { EvidencePanel } from '@/presentation/components/diagnostics/EvidencePanel';
 import { ApiError } from '@/infrastructure/api/client';
 import * as useEvidenceModule from '@/application/hooks/useEvidence';
-import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
+import type { CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 
 // Mock the hooks
 vi.mock('@/application/hooks/useEvidence', async () => {
@@ -26,29 +28,39 @@ vi.mock('@/application/hooks/useEvidence', async () => {
   };
 });
 
-// Test fixtures
-const mockEvidence: EvidenceCapture[] = [
+// Small base64 stub
+const STUB_BASE64 =
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof';
+
+// Test fixtures (V1 CaptureEntry format)
+const mockEvidence: CaptureEntry[] = [
   {
-    id: 'img-001',
+    evidence_id: 'ev-001',
+    capture_tag: 'BEFORE_OPEN',
+    status: 'captured',
+    device_id: 'espcam-b0f7f1',
+    container_id: 'ctr-abc-003',
     session_id: 'sess-12345',
-    captured_at: '2026-01-25T14:30:00Z',
-    camera_id: 'espcam-b0f7f1',
-    thumbnail_url: 'https://example.com/thumb1.jpg',
-    full_url: 'https://example.com/full1.jpg',
-    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-    size_bytes: 45678,
+    created_at: '2026-01-25T14:30:00Z',
+    image_data: STUB_BASE64,
     content_type: 'image/jpeg',
+    image_size_bytes: 45678,
+    object_key: 'evidence/sess-12345/before-open.jpg',
+    upload_status: 'uploaded',
   },
   {
-    id: 'img-002',
+    evidence_id: 'ev-002',
+    capture_tag: 'AFTER_CLOSE',
+    status: 'captured',
+    device_id: 'espcam-a1b2c3',
+    container_id: 'ctr-abc-003',
     session_id: 'sess-12345',
-    captured_at: '2026-01-25T14:25:00Z',
-    camera_id: 'espcam-a1b2c3',
-    thumbnail_url: 'https://example.com/thumb2.jpg',
-    full_url: 'https://example.com/full2.jpg',
-    expires_at: new Date(Date.now() + 14 * 60_000).toISOString(),
-    size_bytes: 52340,
+    created_at: '2026-01-25T14:25:00Z',
+    image_data: STUB_BASE64,
     content_type: 'image/jpeg',
+    image_size_bytes: 52340,
+    object_key: 'evidence/sess-12345/after-close.jpg',
+    upload_status: 'uploaded',
   },
 ];
 
@@ -92,8 +104,8 @@ describe('EvidencePanel', () => {
       render(<EvidencePanel sessionId="sess-12345" />);
 
       expect(screen.getByTestId('evidence-grid')).toBeInTheDocument();
-      expect(screen.getByTestId('evidence-thumbnail-img-001')).toBeInTheDocument();
-      expect(screen.getByTestId('evidence-thumbnail-img-002')).toBeInTheDocument();
+      expect(screen.getByTestId('evidence-thumbnail-ev-001')).toBeInTheDocument();
+      expect(screen.getByTestId('evidence-thumbnail-ev-002')).toBeInTheDocument();
     });
 
     it('should show evidence count', () => {
@@ -244,10 +256,14 @@ describe('EvidencePanel', () => {
       expect(screen.getByTestId('evidence-camera-filter')).toBeInTheDocument();
     });
 
-    it('should hide camera filter when only one camera exists', () => {
-      const singleCameraEvidence: EvidenceCapture[] = [
+    it('should hide camera filter when only one camera (device_id) exists', () => {
+      const singleCameraEvidence: CaptureEntry[] = [
         mockEvidence[0],
-        { ...mockEvidence[0], id: 'img-003', captured_at: '2026-01-25T14:35:00Z' },
+        {
+          ...mockEvidence[0],
+          evidence_id: 'ev-003',
+          created_at: '2026-01-25T14:35:00Z',
+        },
       ];
 
       vi.mocked(useEvidenceModule.useSessionEvidence).mockReturnValue({
@@ -263,7 +279,7 @@ describe('EvidencePanel', () => {
       expect(screen.queryByTestId('evidence-camera-filter')).not.toBeInTheDocument();
     });
 
-    it('should filter evidence by selected camera', async () => {
+    it('should filter evidence by selected device_id', async () => {
       const user = userEvent.setup();
 
       vi.mocked(useEvidenceModule.useSessionEvidence).mockReturnValue({
@@ -277,8 +293,8 @@ describe('EvidencePanel', () => {
       render(<EvidencePanel sessionId="sess-12345" />);
 
       // Initially both thumbnails visible
-      expect(screen.getByTestId('evidence-thumbnail-img-001')).toBeInTheDocument();
-      expect(screen.getByTestId('evidence-thumbnail-img-002')).toBeInTheDocument();
+      expect(screen.getByTestId('evidence-thumbnail-ev-001')).toBeInTheDocument();
+      expect(screen.getByTestId('evidence-thumbnail-ev-002')).toBeInTheDocument();
       expect(screen.getByTestId('evidence-count')).toHaveTextContent('(2)');
 
       // Click filter dropdown and select a specific camera
@@ -288,8 +304,8 @@ describe('EvidencePanel', () => {
       await user.click(option);
 
       // Only the filtered camera's evidence should show
-      expect(screen.queryByTestId('evidence-thumbnail-img-001')).not.toBeInTheDocument();
-      expect(screen.getByTestId('evidence-thumbnail-img-002')).toBeInTheDocument();
+      expect(screen.queryByTestId('evidence-thumbnail-ev-001')).not.toBeInTheDocument();
+      expect(screen.getByTestId('evidence-thumbnail-ev-002')).toBeInTheDocument();
       expect(screen.getByTestId('evidence-count')).toHaveTextContent('(1)');
     });
 
@@ -297,10 +313,10 @@ describe('EvidencePanel', () => {
       const user = userEvent.setup();
 
       // Evidence from camera A only
-      const singleSourceEvidence: EvidenceCapture[] = [
+      const singleSourceEvidence: CaptureEntry[] = [
         mockEvidence[0],
-        { ...mockEvidence[0], id: 'img-003', captured_at: '2026-01-25T14:35:00Z' },
-        { ...mockEvidence[1], id: 'img-004' },
+        { ...mockEvidence[0], evidence_id: 'ev-003', created_at: '2026-01-25T14:35:00Z' },
+        { ...mockEvidence[1], evidence_id: 'ev-004' },
       ];
 
       vi.mocked(useEvidenceModule.useSessionEvidence).mockReturnValue({

@@ -526,13 +526,14 @@ async function applyDefaultMocks(page: Page): Promise<void> {
     });
   });
 
-  await page.route('**/api/dashboard/diagnostics/sessions*', async (route) => {
+  await page.route('**/api/v1/diagnostics/sessions*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: { sessions: [] },
+        data: { sessions: [], total: 0, queried_at: new Date().toISOString() },
+        timestamp: new Date().toISOString(),
       }),
     });
   });

@@ -1,40 +1,54 @@
 /**
  * EvidencePreviewModal Component Tests
  * Feature: 057-live-ops-viewer (Phase 4) - Debug Info section
+ * Feature: 059-real-ops-drilldown - V1 CaptureEntry schema reconciliation
  *
  * Tests for the full-screen evidence image preview modal with metadata,
- * download, and debug info (object key, copy, open raw).
+ * download, and debug info (object key, capture tag, status).
+ * No auto-refresh tests (presigned URL refresh removed in V1).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../../setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { EvidencePreviewModal } from '@/presentation/components/diagnostics/EvidencePreviewModal';
-import { evidenceApi } from '@/infrastructure/api/evidence';
-import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
+import type { CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-// Mock evidence API for auto-refresh tests
+// Small base64 stub for tests
+const STUB_BASE64 =
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof';
+
+// Mock evidence API
 vi.mock('@/infrastructure/api/evidence', () => ({
+  getImageSrc: (capture: { image_data?: string; content_type?: string }) => {
+    if (capture.image_data) {
+      return `data:${capture.content_type || 'image/jpeg'};base64,${capture.image_data}`;
+    }
+    return '';
+  },
   evidenceApi: {
-    refreshPresignedUrl: vi.fn(),
+    captureEntryToBlob: vi.fn(() => new Blob(['test'], { type: 'image/jpeg' })),
+    getCaptureFilename: vi.fn(() => 'evidence-test.jpg'),
   },
 }));
 
-// Test fixture
-const mockEvidence: EvidenceCapture = {
-  id: 'img-001',
-  session_id: 'sess-12345',
-  captured_at: '2026-01-25T14:30:00Z',
-  camera_id: 'espcam-b0f7f1',
-  thumbnail_url: 'https://example.com/thumb1.jpg',
-  full_url:
-    'https://s3.example.com/bucket/sessions/sess-123/evidence/img-001.jpg?X-Amz-Signature=abc',
-  expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-  size_bytes: 45678,
+// Test fixture (V1 CaptureEntry format)
+const mockEvidence: CaptureEntry = {
+  evidence_id: 'ev-001',
+  capture_tag: 'BEFORE_OPEN',
+  status: 'captured',
+  device_id: 'espcam-b0f7f1',
+  container_id: 'ctr-abc-003',
+  session_id: 'sess-completed-001',
+  created_at: '2026-01-25T14:30:00Z',
+  image_data: STUB_BASE64,
   content_type: 'image/jpeg',
+  image_size_bytes: 45678,
+  object_key: 'evidence/sess-completed-001/before-open.jpg',
+  upload_status: 'uploaded',
 };
 
 describe('EvidencePreviewModal', () => {
@@ -49,11 +63,10 @@ describe('EvidencePreviewModal', () => {
       <EvidencePreviewModal evidence={null} open={true} onClose={mockOnClose} />
     );
 
-    // Component returns null, so no dialog content is rendered
     expect(screen.queryByTestId('evidence-preview-modal')).not.toBeInTheDocument();
   });
 
-  it('shows evidence ID in dialog title when open with evidence', () => {
+  it('shows evidence_id in dialog title when open with evidence', () => {
     render(
       <EvidencePreviewModal
         evidence={mockEvidence}
@@ -62,10 +75,10 @@ describe('EvidencePreviewModal', () => {
       />
     );
 
-    expect(screen.getByText(/Evidence: img-001/)).toBeInTheDocument();
+    expect(screen.getByText(/Evidence: ev-001/)).toBeInTheDocument();
   });
 
-  it('shows camera_id metadata', () => {
+  it('shows device_id metadata', () => {
     render(
       <EvidencePreviewModal
         evidence={mockEvidence}
@@ -79,7 +92,7 @@ describe('EvidencePreviewModal', () => {
     expect(cameraEl).toHaveTextContent('espcam-b0f7f1');
   });
 
-  it('shows timestamp metadata', () => {
+  it('shows created_at timestamp metadata', () => {
     render(
       <EvidencePreviewModal
         evidence={mockEvidence}
@@ -90,11 +103,10 @@ describe('EvidencePreviewModal', () => {
 
     const timestampEl = screen.getByTestId('preview-timestamp');
     expect(timestampEl).toBeInTheDocument();
-    // formatTime produces a locale time string; just verify the element exists with content
     expect(timestampEl.textContent).toBeTruthy();
   });
 
-  it('shows size in KB', () => {
+  it('shows image_size_bytes in KB', () => {
     render(
       <EvidencePreviewModal
         evidence={mockEvidence}
@@ -135,7 +147,7 @@ describe('EvidencePreviewModal', () => {
     expect(screen.getByTestId('evidence-debug-info')).toBeInTheDocument();
   });
 
-  it('shows object key when debug info is expanded', async () => {
+  it('shows object_key when debug info is expanded', async () => {
     const user = userEvent.setup();
 
     render(
@@ -148,7 +160,7 @@ describe('EvidencePreviewModal', () => {
 
     // Debug content is hidden (Collapsible removes from DOM when closed)
     expect(
-      screen.queryByText('bucket/sessions/sess-123/evidence/img-001.jpg')
+      screen.queryByText('evidence/sess-completed-001/before-open.jpg')
     ).not.toBeInTheDocument();
 
     // Expand debug section
@@ -156,11 +168,11 @@ describe('EvidencePreviewModal', () => {
 
     // Object key should now be visible
     expect(
-      screen.getByText('bucket/sessions/sess-123/evidence/img-001.jpg')
+      screen.getByText('evidence/sess-completed-001/before-open.jpg')
     ).toBeInTheDocument();
   });
 
-  it('shows "Open raw" button when debug section is expanded', async () => {
+  it('shows capture_tag and status in debug info when expanded', async () => {
     const user = userEvent.setup();
 
     render(
@@ -171,16 +183,10 @@ describe('EvidencePreviewModal', () => {
       />
     );
 
-    // Not present when collapsed
-    expect(screen.queryByTestId('evidence-open-raw')).not.toBeInTheDocument();
-
-    // Expand debug section
     await user.click(screen.getByRole('button', { name: /Debug Info/i }));
 
-    // "Open raw" button should now be present
-    const openRawBtn = screen.getByTestId('evidence-open-raw');
-    expect(openRawBtn).toBeInTheDocument();
-    expect(openRawBtn).toHaveTextContent('Open raw');
+    expect(screen.getByText(/Status: captured/)).toBeInTheDocument();
+    expect(screen.getByText(/Tag: BEFORE_OPEN/)).toBeInTheDocument();
   });
 
   it('calls onClose when close button is clicked', async () => {
@@ -194,28 +200,15 @@ describe('EvidencePreviewModal', () => {
       />
     );
 
-    // The DialogContent renders a Radix close button with an X icon.
-    // The component also has its own ghost close button in the header.
-    // Use the Radix "Close" button (rendered by DialogContent).
-    const closeButtons = screen.getAllByRole('button');
-    // Find the close button - look for the X icon button in the header
-    const headerCloseBtn = closeButtons.find(
-      (btn) => btn.getAttribute('aria-label') === undefined && btn.closest('.flex.flex-row')
-    );
-    // Fallback: click the first X close button rendered by Radix DialogContent
+    // Use the Radix close button
     const radixCloseBtn = screen.getByRole('button', { name: /close/i });
-    await user.click(radixCloseBtn ?? headerCloseBtn);
+    await user.click(radixCloseBtn);
 
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  describe('auto-refresh on error (T013)', () => {
-    it('should call refreshPresignedUrl when full image fails to load', async () => {
-      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce({
-        url: 'https://example.com/fresh-full.jpg',
-        expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-      });
-
+  describe('error and retry', () => {
+    it('should show error state when image fails to load', () => {
       render(
         <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
       );
@@ -223,14 +216,11 @@ describe('EvidencePreviewModal', () => {
       const img = screen.getByRole('img');
       fireEvent.error(img);
 
-      await waitFor(() => {
-        expect(evidenceApi.refreshPresignedUrl).toHaveBeenCalledTimes(1);
-      });
+      expect(screen.getByTestId('preview-error')).toBeInTheDocument();
+      expect(screen.getByText('Image unavailable')).toBeInTheDocument();
     });
 
-    it('should show retry button when refresh fails permanently', async () => {
-      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
-
+    it('should show retry button on error', () => {
       render(
         <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
       );
@@ -238,29 +228,10 @@ describe('EvidencePreviewModal', () => {
       const img = screen.getByRole('img');
       fireEvent.error(img);
 
-      await waitFor(() => {
-        expect(screen.getByTestId('preview-retry-button')).toBeInTheDocument();
-      });
-    });
-
-    it('should show "Image unavailable" text on permanent failure', async () => {
-      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
-
-      render(
-        <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
-      );
-
-      const img = screen.getByRole('img');
-      fireEvent.error(img);
-
-      await waitFor(() => {
-        expect(screen.getByText('Image unavailable')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('preview-retry-button')).toBeInTheDocument();
     });
 
     it('retry button resets and allows re-loading', async () => {
-      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
-
       render(
         <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
       );
@@ -275,7 +246,6 @@ describe('EvidencePreviewModal', () => {
       fireEvent.click(screen.getByTestId('preview-retry-button'));
 
       // After retry, should be back in loading/attempting state
-      // The image src should be reset to original
       await waitFor(() => {
         expect(screen.queryByTestId('preview-retry-button')).not.toBeInTheDocument();
       });

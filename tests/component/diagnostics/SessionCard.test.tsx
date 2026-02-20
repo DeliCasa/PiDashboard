@@ -1,6 +1,7 @@
 /**
  * SessionCard Component Tests
  * Feature: 038-dev-observability-panels (T029)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests for individual session card display.
  */
@@ -11,62 +12,94 @@ import userEvent from '@testing-library/user-event';
 import { SessionCard } from '@/presentation/components/diagnostics/SessionCard';
 import type { SessionWithStale } from '@/infrastructure/api/diagnostics-schemas';
 
-// Test fixtures
+// Test fixtures (V1 format)
 const activeSessionRecent: SessionWithStale = {
-  id: 'sess-12345',
-  delivery_id: 'del-67890',
+  session_id: 'sess-12345',
+  container_id: 'ctr-67890',
   started_at: '2026-01-25T14:00:00Z',
   status: 'active',
-  capture_count: 5,
-  last_capture_at: new Date(Date.now() - 60_000).toISOString(), // 1 minute ago
+  total_captures: 5,
+  successful_captures: 4,
+  failed_captures: 1,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 60,
   is_stale: false,
 };
 
 const activeSessionStale: SessionWithStale = {
-  id: 'sess-23456',
-  delivery_id: 'del-78901',
+  session_id: 'sess-23456',
+  container_id: 'ctr-78901',
   started_at: '2026-01-25T13:00:00Z',
   status: 'active',
-  capture_count: 3,
-  last_capture_at: new Date(Date.now() - 10 * 60_000).toISOString(), // 10 minutes ago
+  total_captures: 3,
+  successful_captures: 2,
+  failed_captures: 1,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 600, // > 300 = stale
   is_stale: true,
 };
 
 const activeSessionNoCaptures: SessionWithStale = {
-  id: 'sess-34567',
-  delivery_id: 'del-89012',
+  session_id: 'sess-34567',
+  container_id: 'ctr-89012',
   started_at: '2026-01-25T15:00:00Z',
   status: 'active',
-  capture_count: 0,
+  total_captures: 0,
+  successful_captures: 0,
+  failed_captures: 0,
+  has_before_open: false,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 30,
   is_stale: false,
 };
 
-const completedSession: SessionWithStale = {
-  id: 'sess-45678',
-  delivery_id: 'del-90123',
+const completeSession: SessionWithStale = {
+  session_id: 'sess-45678',
+  container_id: 'ctr-90123',
   started_at: '2026-01-25T10:00:00Z',
-  status: 'completed',
-  capture_count: 12,
-  last_capture_at: '2026-01-25T10:45:00Z',
+  status: 'complete',
+  total_captures: 12,
+  successful_captures: 12,
+  failed_captures: 0,
+  has_before_open: true,
+  has_after_close: true,
+  pair_complete: true,
+  elapsed_seconds: 2700,
   is_stale: false,
 };
 
-const cancelledSession: SessionWithStale = {
-  id: 'sess-56789',
-  delivery_id: 'del-01234',
+const failedSession: SessionWithStale = {
+  session_id: 'sess-56789',
+  container_id: 'ctr-01234',
   started_at: '2026-01-25T11:00:00Z',
-  status: 'cancelled',
-  capture_count: 2,
-  last_capture_at: '2026-01-25T11:05:00Z',
+  status: 'failed',
+  total_captures: 2,
+  successful_captures: 1,
+  failed_captures: 1,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 300,
   is_stale: false,
 };
 
-const sessionNoDelivery: SessionWithStale = {
-  id: 'sess-67890',
+const sessionNoContainer: SessionWithStale = {
+  session_id: 'sess-67890',
+  container_id: '',
   started_at: '2026-01-25T15:30:00Z',
   status: 'active',
-  capture_count: 1,
-  last_capture_at: new Date(Date.now() - 30_000).toISOString(),
+  total_captures: 1,
+  successful_captures: 1,
+  failed_captures: 0,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 30,
   is_stale: false,
 };
 
@@ -84,15 +117,15 @@ describe('SessionCard', () => {
       expect(screen.getByTestId('session-card-sess-12345')).toBeInTheDocument();
     });
 
-    it('should display delivery ID with copy button when present', () => {
+    it('should display container ID with copy button when present', () => {
       render(<SessionCard session={activeSessionRecent} />);
 
-      expect(screen.getByTestId('session-card-correlation')).toHaveTextContent('del-67890');
+      expect(screen.getByTestId('session-card-correlation')).toHaveTextContent('ctr-67890');
       expect(screen.getByLabelText('Copy correlation ID')).toBeInTheDocument();
     });
 
-    it('should not display delivery ID when not present', () => {
-      render(<SessionCard session={sessionNoDelivery} />);
+    it('should not display container ID when not present', () => {
+      render(<SessionCard session={sessionNoContainer} />);
 
       expect(screen.queryByTestId('session-card-correlation')).not.toBeInTheDocument();
     });
@@ -105,22 +138,34 @@ describe('SessionCard', () => {
       expect(startedAt.textContent).toContain('Started:');
     });
 
-    it('should display capture count', () => {
+    it('should display capture count as successful/total', () => {
       render(<SessionCard session={activeSessionRecent} />);
 
-      expect(screen.getByTestId('capture-count')).toHaveTextContent('5 captures');
+      expect(screen.getByTestId('capture-count')).toHaveTextContent('4/5 captures');
     });
 
-    it('should display singular capture when count is 1', () => {
-      render(<SessionCard session={sessionNoDelivery} />);
+    it('should display singular capture when total is 1', () => {
+      render(<SessionCard session={sessionNoContainer} />);
 
-      expect(screen.getByTestId('capture-count')).toHaveTextContent('1 capture');
+      expect(screen.getByTestId('capture-count')).toHaveTextContent('1/1 capture');
     });
 
     it('should display zero captures', () => {
       render(<SessionCard session={activeSessionNoCaptures} />);
 
-      expect(screen.getByTestId('capture-count')).toHaveTextContent('0 captures');
+      expect(screen.getByTestId('capture-count')).toHaveTextContent('0/0 captures');
+    });
+
+    it('should display elapsed duration', () => {
+      render(<SessionCard session={activeSessionRecent} />);
+
+      expect(screen.getByTestId('elapsed-duration')).toHaveTextContent('1m');
+    });
+
+    it('should display elapsed duration in hours for long sessions', () => {
+      render(<SessionCard session={completeSession} />);
+
+      expect(screen.getByTestId('elapsed-duration')).toHaveTextContent('45m');
     });
   });
 
@@ -137,30 +182,31 @@ describe('SessionCard', () => {
       expect(screen.getByTestId('session-status')).toHaveTextContent('Stale');
     });
 
-    it('should show Completed badge for completed session', () => {
-      render(<SessionCard session={completedSession} />);
+    it('should show Complete badge for complete session', () => {
+      render(<SessionCard session={completeSession} />);
 
-      expect(screen.getByTestId('session-status')).toHaveTextContent('Completed');
+      expect(screen.getByTestId('session-status')).toHaveTextContent('Complete');
     });
 
-    it('should show Failed badge for cancelled session', () => {
-      render(<SessionCard session={cancelledSession} />);
+    it('should show Failed badge for failed session', () => {
+      render(<SessionCard session={failedSession} />);
 
       expect(screen.getByTestId('session-status')).toHaveTextContent('Failed');
     });
   });
 
-  describe('last capture time', () => {
-    it('should display last capture time when available', () => {
-      render(<SessionCard session={activeSessionRecent} />);
+  describe('pair complete badge', () => {
+    it('should show Paired badge when pair_complete is true', () => {
+      render(<SessionCard session={completeSession} />);
 
-      expect(screen.getByTestId('last-capture')).toBeInTheDocument();
+      expect(screen.getByTestId('pair-complete-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('pair-complete-badge')).toHaveTextContent('Paired');
     });
 
-    it('should not display last capture time when no captures', () => {
-      render(<SessionCard session={activeSessionNoCaptures} />);
+    it('should not show Paired badge when pair_complete is false', () => {
+      render(<SessionCard session={activeSessionRecent} />);
 
-      expect(screen.queryByTestId('last-capture')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('pair-complete-badge')).not.toBeInTheDocument();
     });
   });
 
@@ -180,14 +226,13 @@ describe('SessionCard', () => {
       expect(screen.queryByTestId('stale-warning')).not.toBeInTheDocument();
     });
 
-    it('should not show stale warning for completed session even if old', () => {
+    it('should not show stale warning for completed session even if marked stale', () => {
       const oldCompletedSession: SessionWithStale = {
-        ...completedSession,
-        is_stale: true, // Even if marked stale
+        ...completeSession,
+        is_stale: true,
       };
       render(<SessionCard session={oldCompletedSession} />);
 
-      // Should not show stale warning for non-active sessions
       expect(screen.queryByTestId('stale-warning')).not.toBeInTheDocument();
     });
   });
