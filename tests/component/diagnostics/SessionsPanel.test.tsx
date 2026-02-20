@@ -1,6 +1,7 @@
 /**
  * SessionsPanel Component Tests
  * Feature: 038-dev-observability-panels (T028)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests for sessions panel with session listing.
  */
@@ -25,24 +26,34 @@ vi.mock('@/application/hooks/useSessions', async () => {
   };
 });
 
-// Test fixtures
+// Test fixtures (V1 format)
 const activeSessions: SessionWithStale[] = [
   {
-    id: 'sess-12345',
-    delivery_id: 'del-67890',
+    session_id: 'sess-12345',
+    container_id: 'ctr-67890',
     started_at: '2026-01-25T14:00:00Z',
     status: 'active',
-    capture_count: 5,
-    last_capture_at: new Date(Date.now() - 60_000).toISOString(),
+    total_captures: 5,
+    successful_captures: 4,
+    failed_captures: 1,
+    has_before_open: true,
+    has_after_close: false,
+    pair_complete: false,
+    elapsed_seconds: 60,
     is_stale: false,
   },
   {
-    id: 'sess-23456',
-    delivery_id: 'del-78901',
+    session_id: 'sess-23456',
+    container_id: 'ctr-78901',
     started_at: '2026-01-25T13:00:00Z',
     status: 'active',
-    capture_count: 3,
-    last_capture_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+    total_captures: 3,
+    successful_captures: 2,
+    failed_captures: 1,
+    has_before_open: true,
+    has_after_close: false,
+    pair_complete: false,
+    elapsed_seconds: 600,
     is_stale: true,
   },
 ];
@@ -50,12 +61,17 @@ const activeSessions: SessionWithStale[] = [
 const mixedSessions: SessionWithStale[] = [
   ...activeSessions,
   {
-    id: 'sess-stale-2',
-    delivery_id: 'del-stale',
+    session_id: 'sess-stale-2',
+    container_id: 'ctr-stale',
     started_at: '2026-01-25T12:00:00Z',
     status: 'active',
-    capture_count: 1,
-    last_capture_at: new Date(Date.now() - 15 * 60_000).toISOString(),
+    total_captures: 1,
+    successful_captures: 1,
+    failed_captures: 0,
+    has_before_open: true,
+    has_after_close: false,
+    pair_complete: false,
+    elapsed_seconds: 900,
     is_stale: true,
   },
 ];

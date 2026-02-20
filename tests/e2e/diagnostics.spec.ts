@@ -49,47 +49,75 @@ const mockSessions = {
   data: {
     sessions: [
       {
-        id: 'sess-12345',
-        delivery_id: 'del-67890',
+        session_id: 'sess-12345',
+        container_id: 'ctr-67890',
         started_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         status: 'active',
-        capture_count: 5,
-        last_capture_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        total_captures: 5,
+        successful_captures: 4,
+        failed_captures: 1,
+        has_before_open: true,
+        has_after_close: false,
+        pair_complete: false,
+        elapsed_seconds: 1800,
       },
       {
-        id: 'sess-23456',
-        delivery_id: 'del-78901',
+        session_id: 'sess-23456',
+        container_id: 'ctr-78901',
         started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
         status: 'active',
-        capture_count: 3,
-        last_capture_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        total_captures: 3,
+        successful_captures: 3,
+        failed_captures: 0,
+        has_before_open: true,
+        has_after_close: false,
+        pair_complete: false,
+        elapsed_seconds: 3600,
       },
     ],
+    total: 2,
+    queried_at: new Date().toISOString(),
   },
+  timestamp: new Date().toISOString(),
 };
 
 const mockSessionsEmpty = {
   success: true,
-  data: { sessions: [] },
+  data: { sessions: [], total: 0, queried_at: new Date().toISOString() },
+  timestamp: new Date().toISOString(),
 };
 
 const mockEvidence = {
   success: true,
   data: {
-    evidence: [
+    session_id: 'sess-12345',
+    container_id: 'ctr-67890',
+    captures: [
       {
-        id: 'img-001',
+        evidence_id: 'ev-001',
+        capture_tag: 'BEFORE_OPEN',
+        status: 'captured',
+        device_id: 'espcam-b0f7f1',
+        container_id: 'ctr-67890',
         session_id: 'sess-12345',
-        captured_at: new Date(Date.now() - 60 * 1000).toISOString(),
-        camera_id: 'espcam-b0f7f1',
-        thumbnail_url: 'data:image/png;base64,iVBORw0KGgo=',
-        full_url: 'data:image/png;base64,iVBORw0KGgo=',
-        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        size_bytes: 45678,
+        created_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        image_data: 'iVBORw0KGgo=',
         content_type: 'image/jpeg',
+        image_size_bytes: 45678,
+        object_key: 'evidence/sess-12345/before-open.jpg',
+        upload_status: 'uploaded',
       },
     ],
+    summary: {
+      total_captures: 1,
+      successful_captures: 1,
+      failed_captures: 0,
+      has_before_open: true,
+      has_after_close: false,
+      pair_complete: false,
+    },
   },
+  timestamp: new Date().toISOString(),
 };
 
 /**
@@ -105,10 +133,10 @@ async function setupDiagnosticsMocks(page: import('@playwright/test').Page) {
   await mockEndpoint(page, '**/api/system/info', {
     data: mockSystemInfo,
   });
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
     data: mockSessions,
   });
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions/*/evidence*', {
+  await mockEndpoint(page, '**/api/v1/sessions/*/evidence*', {
     data: mockEvidence,
   });
   // Mock other common endpoints to avoid 404s
@@ -226,7 +254,7 @@ test.describe('Diagnostics Page', () => {
       error: true,
       errorMessage: 'Service unavailable',
     });
-    await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+    await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
       data: mockSessionsEmpty, // Empty sessions (graceful degradation)
     });
 

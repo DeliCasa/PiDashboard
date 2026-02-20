@@ -1,8 +1,10 @@
 /**
  * SessionListView Component Tests
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests for the operations session list view with status filter tabs,
  * refresh functionality, and session selection.
+ * V1 status values: active, complete, partial, failed (no "completed"/"cancelled").
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -24,14 +26,14 @@ vi.mock('@/presentation/components/diagnostics/SessionCard', () => ({
     session,
     onSelect,
   }: {
-    session: { id: string };
+    session: { session_id: string };
     onSelect?: (id: string) => void;
   }) => (
     <div
-      data-testid={`session-card-${session.id}`}
-      onClick={() => onSelect?.(session.id)}
+      data-testid={`session-card-${session.session_id}`}
+      onClick={() => onSelect?.(session.session_id)}
     >
-      {session.id}
+      {session.session_id}
     </div>
   ),
 }));
@@ -41,28 +43,48 @@ import {
   useRefreshSessions,
 } from '@/application/hooks/useSessions';
 
-// Test fixtures
+// Test fixtures (V1 format)
 const mockSessions: SessionWithStale[] = [
   {
-    id: 'sess-001',
+    session_id: 'sess-001',
+    container_id: 'ctr-001',
     started_at: '2026-02-18T10:00:00Z',
     status: 'active',
-    capture_count: 5,
+    total_captures: 5,
+    successful_captures: 5,
+    failed_captures: 0,
+    has_before_open: true,
+    has_after_close: false,
+    pair_complete: false,
+    elapsed_seconds: 120,
     is_stale: false,
   },
   {
-    id: 'sess-002',
-    delivery_id: 'del-002',
+    session_id: 'sess-002',
+    container_id: 'ctr-002',
     started_at: '2026-02-18T09:00:00Z',
-    status: 'completed',
-    capture_count: 12,
+    status: 'complete',
+    total_captures: 12,
+    successful_captures: 12,
+    failed_captures: 0,
+    has_before_open: true,
+    has_after_close: true,
+    pair_complete: true,
+    elapsed_seconds: 1800,
     is_stale: false,
   },
   {
-    id: 'sess-003',
+    session_id: 'sess-003',
+    container_id: 'ctr-003',
     started_at: '2026-02-18T08:00:00Z',
-    status: 'cancelled',
-    capture_count: 2,
+    status: 'failed',
+    total_captures: 2,
+    successful_captures: 1,
+    failed_captures: 1,
+    has_before_open: true,
+    has_after_close: false,
+    pair_complete: false,
+    elapsed_seconds: 300,
     is_stale: false,
   },
 ];
@@ -251,7 +273,7 @@ describe('SessionListView', () => {
   });
 
   describe('status filter tabs', () => {
-    it('should render All, Active, Completed, and Failed tabs', () => {
+    it('should render All, Active, Complete, Partial, and Failed tabs', () => {
       render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
 
       expect(screen.getByRole('tab', { name: /all/i })).toBeInTheDocument();
@@ -259,23 +281,26 @@ describe('SessionListView', () => {
         screen.getByRole('tab', { name: /active/i })
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('tab', { name: /completed/i })
+        screen.getByRole('tab', { name: /complete/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /partial/i })
       ).toBeInTheDocument();
       expect(
         screen.getByRole('tab', { name: /failed/i })
       ).toBeInTheDocument();
     });
 
-    it('should call useSessions with status "cancelled" when Failed tab is clicked', async () => {
+    it('should call useSessions with status "failed" when Failed tab is clicked', async () => {
       const user = userEvent.setup();
 
       render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
 
       await user.click(screen.getByRole('tab', { name: /failed/i }));
 
-      // After clicking Failed tab, useSessions should be called with status: 'cancelled'
+      // After clicking Failed tab, useSessions should be called with status: 'failed'
       expect(useSessions).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'cancelled', limit: 20 })
+        expect.objectContaining({ status: 'failed', limit: 20 })
       );
     });
 
@@ -291,15 +316,27 @@ describe('SessionListView', () => {
       );
     });
 
-    it('should call useSessions with status "completed" when Completed tab is clicked', async () => {
+    it('should call useSessions with status "complete" when Complete tab is clicked', async () => {
       const user = userEvent.setup();
 
       render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
 
-      await user.click(screen.getByRole('tab', { name: /completed/i }));
+      await user.click(screen.getByRole('tab', { name: /complete/i }));
 
       expect(useSessions).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'completed', limit: 20 })
+        expect.objectContaining({ status: 'complete', limit: 20 })
+      );
+    });
+
+    it('should call useSessions with status "partial" when Partial tab is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
+
+      await user.click(screen.getByRole('tab', { name: /partial/i }));
+
+      expect(useSessions).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'partial', limit: 20 })
       );
     });
   });

@@ -1,41 +1,32 @@
 /**
- * Sessions API Client - DEV Observability Panels
- * Feature: 038-dev-observability-panels
+ * Sessions API Client - Real Ops Drilldown
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
- * Provides session listing and detail functions for BridgeServer sessions.
- * Sessions represent purchase/evidence capture sessions.
+ * Provides session listing from PiOrchestrator V1 diagnostics endpoint.
+ * Sessions represent vending machine operation cycles.
  */
 
-import { apiClient, buildUrl, isFeatureUnavailable } from './client';
+import { apiClient, isFeatureUnavailable } from './client';
 import {
   SessionListResponseSchema,
-  SessionDetailResponseSchema,
   type Session,
   type SessionWithStale,
 } from './diagnostics-schemas';
 import { safeParseWithErrors } from './schemas';
 
 /**
- * Stale capture threshold: 5 minutes (per spec FR-009)
+ * Stale threshold: 300 seconds (5 minutes) per spec FR-009
  */
-const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+const STALE_THRESHOLD_SECONDS = 300;
 
 /**
- * Calculate if a capture is stale
- */
-function isStaleCapture(lastCaptureAt: string | undefined): boolean {
-  if (!lastCaptureAt) return false;
-  const lastCapture = new Date(lastCaptureAt).getTime();
-  return Date.now() - lastCapture > STALE_THRESHOLD_MS;
-}
-
-/**
- * Add is_stale derived field to session
+ * Derive is_stale flag from elapsed_seconds for active sessions.
+ * Only active sessions can be stale — completed/failed/partial are not.
  */
 function addStaleFlag(session: Session): SessionWithStale {
   return {
     ...session,
-    is_stale: isStaleCapture(session.last_capture_at),
+    is_stale: session.status === 'active' && session.elapsed_seconds > STALE_THRESHOLD_SECONDS,
   };
 }
 
@@ -51,7 +42,7 @@ function sortByMostRecent(sessions: Session[]): Session[] {
 }
 
 interface ListSessionsOptions {
-  status?: 'active' | 'completed' | 'cancelled' | 'all';
+  status?: 'active' | 'complete' | 'partial' | 'failed' | 'all';
   limit?: number;
 }
 
@@ -60,16 +51,12 @@ interface ListSessionsOptions {
  */
 export const sessionsApi = {
   /**
-   * List sessions from BridgeServer
+   * List sessions from PiOrchestrator V1 endpoint.
+   * V1 endpoint does not support server-side status filtering — filter client-side.
    */
   listSessions: async (options: ListSessionsOptions = {}): Promise<SessionWithStale[]> => {
     try {
-      const endpoint = buildUrl('/dashboard/diagnostics/sessions', {
-        status: options.status || 'active',
-        limit: options.limit || 50,
-      });
-
-      const response = await apiClient.get<unknown>(endpoint);
+      const response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
 
       const parsed = safeParseWithErrors(SessionListResponseSchema, response);
 
@@ -82,10 +69,21 @@ export const sessionsApi = {
         return [];
       }
 
-      const sortedSessions = sortByMostRecent(parsed.data.data.sessions);
+      let sessions = parsed.data.data.sessions;
+
+      // Client-side status filtering (V1 endpoint returns all sessions)
+      if (options.status && options.status !== 'all') {
+        sessions = sessions.filter((s) => s.status === options.status);
+      }
+
+      // Apply limit
+      if (options.limit) {
+        sessions = sessions.slice(0, options.limit);
+      }
+
+      const sortedSessions = sortByMostRecent(sessions);
       return sortedSessions.map(addStaleFlag);
     } catch (error) {
-      // Graceful degradation for unavailable endpoints
       if (isFeatureUnavailable(error)) {
         return [];
       }
@@ -96,24 +94,30 @@ export const sessionsApi = {
   },
 
   /**
-   * Get session details by ID
+   * Get session details by ID.
+   * No dedicated detail endpoint exists — filters from list by session_id.
    */
   getSession: async (sessionId: string): Promise<SessionWithStale | null> => {
     try {
-      const response = await apiClient.get<unknown>(`/dashboard/diagnostics/sessions/${sessionId}`);
+      const response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
 
-      const parsed = safeParseWithErrors(SessionDetailResponseSchema, response);
+      const parsed = safeParseWithErrors(SessionListResponseSchema, response);
 
       if (!parsed.success) {
         console.warn('Session detail response validation failed:', parsed.errors);
         return null;
       }
 
-      if (!parsed.data.success || !parsed.data.data) {
+      if (!parsed.data.success || !parsed.data.data?.sessions) {
         return null;
       }
 
-      return addStaleFlag(parsed.data.data);
+      const session = parsed.data.data.sessions.find((s) => s.session_id === sessionId);
+      if (!session) {
+        return null;
+      }
+
+      return addStaleFlag(session);
     } catch (error) {
       if (isFeatureUnavailable(error)) {
         return null;
@@ -126,9 +130,9 @@ export const sessionsApi = {
 };
 
 /**
- * Export stale capture utility for use in components
+ * Export stale threshold for use in components and tests
  */
-export { isStaleCapture, STALE_THRESHOLD_MS };
+export { STALE_THRESHOLD_SECONDS };
 
 // ============================================================================
 // Session Recovery API (Provisioning)

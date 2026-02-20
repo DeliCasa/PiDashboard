@@ -1,18 +1,28 @@
 /**
  * Evidence API Client Unit Tests
- * Feature: 038-dev-observability-panels (T044)
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Tests for evidence API client functions.
+ * V1 changes: CaptureEntry (not EvidenceCapture), device_id (not camera_id),
+ * created_at (not captured_at), image_data/object_key (not thumbnail_url/full_url),
+ * no presigned URL refresh, no isUrlExpired/getFreshUrl/extractObjectKey.
+ * New helpers: getImageSrc, hasImageData, isS3Only, captureEntryToBlob, getCaptureFilename.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { evidenceApi } from '@/infrastructure/api/evidence';
+import {
+  evidenceApi,
+  getImageSrc,
+  hasImageData,
+  isS3Only,
+} from '@/infrastructure/api/evidence';
 import { apiClient } from '@/infrastructure/api/client';
 import {
   evidenceListApiResponse,
   evidenceListEmptyApiResponse,
-  presignApiResponse,
-  validEvidenceCapture,
+  captureBeforeOpen,
+  captureS3Only,
+  captureFailed,
 } from '../../mocks/diagnostics/session-fixtures';
 
 // Mock the apiClient
@@ -22,6 +32,16 @@ vi.mock('@/infrastructure/api/client', () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
+  },
+  ApiError: class ApiError extends Error {
+    status: number;
+    code: string;
+    constructor(status: number, message: string, code: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+      this.name = 'ApiError';
+    }
   },
   buildUrl: vi.fn((path, params) => {
     const url = new URL(`http://localhost${path}`);
@@ -40,45 +60,33 @@ vi.mock('@/infrastructure/api/client', () => ({
 describe('Evidence API Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-25T15:00:00Z'));
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   describe('listSessionEvidence', () => {
-    it('should return evidence captures for a session', async () => {
+    it('should call V1 endpoint and return CaptureEntry array', async () => {
       vi.mocked(apiClient.get).mockResolvedValueOnce(evidenceListApiResponse);
 
-      const result = await evidenceApi.listSessionEvidence('sess-12345');
+      const result = await evidenceApi.listSessionEvidence('sess-completed-001');
 
-      expect(apiClient.get).toHaveBeenCalled();
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/sessions/sess-completed-001/evidence');
       expect(result).toHaveLength(3);
     });
 
-    it('should sort evidence by captured_at (most recent first)', async () => {
+    it('should sort captures by created_at (most recent first)', async () => {
       vi.mocked(apiClient.get).mockResolvedValueOnce(evidenceListApiResponse);
 
-      const result = await evidenceApi.listSessionEvidence('sess-12345');
+      const result = await evidenceApi.listSessionEvidence('sess-completed-001');
 
       // Check sorting - most recent first
       for (let i = 1; i < result.length; i++) {
-        const prevDate = new Date(result[i - 1].captured_at).getTime();
-        const currDate = new Date(result[i].captured_at).getTime();
+        const prevDate = new Date(result[i - 1].created_at).getTime();
+        const currDate = new Date(result[i].created_at).getTime();
         expect(prevDate).toBeGreaterThanOrEqual(currDate);
       }
-    });
-
-    it('should respect limit parameter', async () => {
-      vi.mocked(apiClient.get).mockResolvedValueOnce(evidenceListApiResponse);
-
-      await evidenceApi.listSessionEvidence('sess-12345', { limit: 10 });
-
-      const callArg = vi.mocked(apiClient.get).mock.calls[0][0];
-      expect(callArg).toContain('limit=10');
     });
 
     it('should return empty array on empty response', async () => {
@@ -113,165 +121,117 @@ describe('Evidence API Client', () => {
 
       expect(result).toEqual([]);
     });
-  });
 
-  describe('refreshPresignedUrl', () => {
-    it('should return new URL on successful refresh', async () => {
-      vi.mocked(apiClient.get).mockResolvedValueOnce(presignApiResponse);
+    it('should return captures with V1 field names', async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce(evidenceListApiResponse);
 
-      const result = await evidenceApi.refreshPresignedUrl('images/evidence/test.jpg');
+      const result = await evidenceApi.listSessionEvidence('sess-completed-001');
 
-      expect(result).toBeDefined();
-      expect(result?.url).toContain('https://');
-      expect(result?.expires_at).toBeDefined();
-    });
-
-    it('should include key and expiresIn parameters', async () => {
-      vi.mocked(apiClient.get).mockResolvedValueOnce(presignApiResponse);
-
-      await evidenceApi.refreshPresignedUrl('images/test.jpg', 1800);
-
-      const callArg = vi.mocked(apiClient.get).mock.calls[0][0];
-      expect(callArg).toContain('key=images%2Ftest.jpg');
-      expect(callArg).toContain('expiresIn=1800');
-    });
-
-    it('should return null on 404 error', async () => {
-      const error = { status: 404, message: 'Not found' };
-      vi.mocked(apiClient.get).mockRejectedValueOnce(error);
-
-      const result = await evidenceApi.refreshPresignedUrl('nonexistent.jpg');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null on invalid response', async () => {
-      const invalidResponse = { success: false };
-      vi.mocked(apiClient.get).mockResolvedValueOnce(invalidResponse);
-
-      const result = await evidenceApi.refreshPresignedUrl('test.jpg');
-
-      expect(result).toBeNull();
-    });
-
-    it('should throw on non-feature errors', async () => {
-      const error = new Error('Connection refused');
-      vi.mocked(apiClient.get).mockRejectedValueOnce(error);
-
-      await expect(evidenceApi.refreshPresignedUrl('test.jpg')).rejects.toThrow('Connection refused');
+      // V1 field names
+      expect(result[0]).toHaveProperty('evidence_id');
+      expect(result[0]).toHaveProperty('device_id');
+      expect(result[0]).toHaveProperty('created_at');
+      expect(result[0]).toHaveProperty('capture_tag');
+      expect(result[0]).toHaveProperty('session_id');
+      expect(result[0]).toHaveProperty('container_id');
     });
   });
 
-  describe('getFreshUrl', () => {
-    // Fake time is 2026-01-25T15:00:00Z — build dates relative to it
-    const FAKE_NOW = new Date('2026-01-25T15:00:00Z').getTime();
+  describe('getImageSrc', () => {
+    it('should return base64 data URI when image_data is present', () => {
+      const result = getImageSrc(captureBeforeOpen);
 
-    function makeExpiredEvidence() {
-      return {
-        ...validEvidenceCapture,
-        thumbnail_url: 'https://minio.example.com/thumbs/ev-001.jpg?X-Amz-Expires=900',
-        full_url: 'https://minio.example.com/full/ev-001.jpg?X-Amz-Expires=900',
-        expires_at: new Date(FAKE_NOW - 5 * 60_000).toISOString(), // expired 5 min ago
-      };
-    }
-
-    function makeFreshEvidence() {
-      return {
-        ...validEvidenceCapture,
-        expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(), // valid for 15 min
-      };
-    }
-
-    it('should return original URL when not expired', async () => {
-      const fresh = makeFreshEvidence();
-      const result = await evidenceApi.getFreshUrl(fresh);
-      expect(result).toBe(fresh.thumbnail_url);
-      expect(apiClient.get).not.toHaveBeenCalled();
+      expect(result).toMatch(/^data:image\/jpeg;base64,/);
+      expect(result).toContain(captureBeforeOpen.image_data);
     });
 
-    it('should call refreshPresignedUrl when expired and return fresh URL', async () => {
-      const expired = makeExpiredEvidence();
-      const freshUrl = 'https://minio.example.com/presigned/fresh-ev-001.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256';
-      vi.mocked(apiClient.get).mockResolvedValueOnce({
-        success: true,
-        data: {
-          url: freshUrl,
-          expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(),
-        },
-      });
+    it('should return empty string when image_data is absent', () => {
+      const result = getImageSrc(captureS3Only);
 
-      const result = await evidenceApi.getFreshUrl(expired);
-
-      expect(apiClient.get).toHaveBeenCalled();
-      expect(result).toBe(freshUrl);
+      expect(result).toBe('');
     });
 
-    it('should return original URL when refresh fails', async () => {
-      const expired = makeExpiredEvidence();
-      vi.mocked(apiClient.get).mockResolvedValueOnce({
-        success: false,
-      });
+    it('should use content_type from capture entry', () => {
+      const pngCapture = { ...captureBeforeOpen, content_type: 'image/png' };
+      const result = getImageSrc(pngCapture);
 
-      const result = await evidenceApi.getFreshUrl(expired);
-
-      expect(apiClient.get).toHaveBeenCalled();
-      expect(result).toBe(expired.thumbnail_url);
+      expect(result).toMatch(/^data:image\/png;base64,/);
     });
 
-    it('should return original URL when refresh throws', async () => {
-      const expired = makeExpiredEvidence();
-      vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('Network error'));
+    it('should default to image/jpeg when content_type is missing', () => {
+      const noContentType = { ...captureBeforeOpen, content_type: undefined };
+      const result = getImageSrc(noContentType);
 
-      const result = await evidenceApi.getFreshUrl(expired);
-
-      expect(result).toBe(expired.thumbnail_url);
-    });
-
-    it('should use full_url when urlType is full', async () => {
-      const fresh = makeFreshEvidence();
-      const result = await evidenceApi.getFreshUrl(fresh, 'full');
-      expect(result).toBe(fresh.full_url);
-    });
-
-    it('should extract correct object key from expired URL for refresh', async () => {
-      const expired = makeExpiredEvidence();
-      vi.mocked(apiClient.get).mockResolvedValueOnce({
-        success: true,
-        data: {
-          url: 'https://minio.example.com/presigned/fresh.jpg',
-          expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(),
-        },
-      });
-
-      await evidenceApi.getFreshUrl(expired);
-
-      const callArg = vi.mocked(apiClient.get).mock.calls[0][0];
-      // Object key should be extracted from thumbnail URL pathname (without leading slash)
-      expect(callArg).toContain('key=thumbs%2Fev-001.jpg');
+      expect(result).toMatch(/^data:image\/jpeg;base64,/);
     });
   });
 
-  describe('isUrlExpired', () => {
-    it('should return false for future expiration', () => {
-      const futureDate = new Date(Date.now() + 10 * 60_000).toISOString(); // 10 min from now
-      expect(evidenceApi.isUrlExpired(futureDate)).toBe(false);
+  describe('hasImageData', () => {
+    it('should return true when capture has image_data', () => {
+      expect(hasImageData(captureBeforeOpen)).toBe(true);
     });
 
-    it('should return true for past expiration', () => {
-      const pastDate = new Date(Date.now() - 60_000).toISOString(); // 1 min ago
-      expect(evidenceApi.isUrlExpired(pastDate)).toBe(true);
+    it('should return false when capture has no image_data', () => {
+      expect(hasImageData(captureS3Only)).toBe(false);
     });
 
-    it('should return true when within threshold', () => {
-      const soonToExpire = new Date(Date.now() + 30_000).toISOString(); // 30 sec from now
-      // Default threshold is 60 seconds, so this should be considered expired
-      expect(evidenceApi.isUrlExpired(soonToExpire)).toBe(true);
+    it('should return false for failed captures without image_data', () => {
+      expect(hasImageData(captureFailed)).toBe(false);
+    });
+  });
+
+  describe('isS3Only', () => {
+    it('should return true when capture has object_key but no image_data', () => {
+      expect(isS3Only(captureS3Only)).toBe(true);
     });
 
-    it('should respect custom threshold', () => {
-      const soonToExpire = new Date(Date.now() + 30_000).toISOString(); // 30 sec from now
-      // With 10 second threshold, this should NOT be expired
-      expect(evidenceApi.isUrlExpired(soonToExpire, 10_000)).toBe(false);
+    it('should return false when capture has image_data', () => {
+      expect(isS3Only(captureBeforeOpen)).toBe(false);
+    });
+
+    it('should return false when capture has neither image_data nor object_key', () => {
+      expect(isS3Only(captureFailed)).toBe(false);
+    });
+  });
+
+  describe('captureEntryToBlob', () => {
+    it('should return Blob when capture has image_data', () => {
+      const blob = evidenceApi.captureEntryToBlob(captureBeforeOpen);
+
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob?.type).toBe('image/jpeg');
+    });
+
+    it('should return null when capture has no image_data', () => {
+      const blob = evidenceApi.captureEntryToBlob(captureS3Only);
+
+      expect(blob).toBeNull();
+    });
+
+    it('should return null for failed capture without image_data', () => {
+      const blob = evidenceApi.captureEntryToBlob(captureFailed);
+
+      expect(blob).toBeNull();
+    });
+  });
+
+  describe('getCaptureFilename', () => {
+    it('should generate filename with device_id, capture_tag, and timestamp', () => {
+      const filename = evidenceApi.getCaptureFilename(captureBeforeOpen);
+
+      expect(filename).toContain('evidence-');
+      expect(filename).toContain(captureBeforeOpen.device_id);
+      expect(filename).toContain(captureBeforeOpen.capture_tag);
+      expect(filename.endsWith('.jpg')).toBe(true);
+    });
+
+    it('should sanitize timestamp colons and periods', () => {
+      const filename = evidenceApi.getCaptureFilename(captureBeforeOpen);
+
+      // Should not contain : or . except in the .jpg extension
+      const withoutExtension = filename.replace('.jpg', '');
+      expect(withoutExtension).not.toContain(':');
+      expect(withoutExtension).not.toContain('.');
     });
   });
 });

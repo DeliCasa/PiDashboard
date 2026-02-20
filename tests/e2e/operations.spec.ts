@@ -18,43 +18,49 @@ const MOCK_SESSIONS = {
   data: {
     sessions: [
       {
-        id: 'sess-op-001',
-        delivery_id: 'del-op-001',
+        session_id: 'sess-op-001',
+        container_id: 'ctr-op-001',
         started_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
         status: 'active',
-        capture_count: 4,
-        last_capture_at: new Date(Date.now() - 30 * 1000).toISOString(),
+        total_captures: 4,
+        successful_captures: 3,
+        failed_captures: 1,
+        has_before_open: true,
+        has_after_close: false,
+        pair_complete: false,
+        elapsed_seconds: 900,
       },
       {
-        id: 'sess-op-002',
-        delivery_id: 'del-op-002',
+        session_id: 'sess-op-002',
+        container_id: 'ctr-op-002',
         started_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         status: 'completed',
-        capture_count: 8,
-        last_capture_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+        total_captures: 8,
+        successful_captures: 8,
+        failed_captures: 0,
+        has_before_open: true,
+        has_after_close: true,
+        pair_complete: true,
+        elapsed_seconds: 2700,
       },
       {
-        id: 'sess-op-003',
-        delivery_id: 'del-op-003',
+        session_id: 'sess-op-003',
+        container_id: 'ctr-op-003',
         started_at: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
         status: 'cancelled',
-        capture_count: 1,
-        last_capture_at: new Date(Date.now() - 85 * 60 * 1000).toISOString(),
+        total_captures: 1,
+        successful_captures: 1,
+        failed_captures: 0,
+        has_before_open: true,
+        has_after_close: false,
+        pair_complete: false,
+        elapsed_seconds: 5400,
       },
     ],
+    total: 3,
+    queried_at: new Date().toISOString(),
   },
-};
-
-const MOCK_SESSION_DETAIL = {
-  success: true,
-  data: {
-    id: 'sess-op-001',
-    delivery_id: 'del-op-001',
-    started_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    status: 'active',
-    capture_count: 4,
-    last_capture_at: new Date(Date.now() - 30 * 1000).toISOString(),
-  },
+  timestamp: new Date().toISOString(),
 };
 
 const MOCK_SESSION_DELTA = {
@@ -99,28 +105,22 @@ const MOCK_SESSION_DELTA = {
  */
 async function setupSessionsMock(page: import('@playwright/test').Page) {
   // Remove the default empty sessions mock registered by applyDefaultMocks
-  await page.unroute('**/api/dashboard/diagnostics/sessions*');
+  await page.unroute('**/api/v1/diagnostics/sessions*');
 
   // Mock the sessions list endpoint with our test data
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
     data: MOCK_SESSIONS,
   });
 
 }
 
 /**
- * Set up session detail mock for the individual session endpoint.
- * The sessions API fetches a single session via /dashboard/diagnostics/sessions/:id
+ * Set up session detail and evidence mocks.
+ * In V1, getSession() filters from the list endpoint (/v1/diagnostics/sessions),
+ * so no individual session detail mock is needed.
  */
 async function setupSessionDetailMock(page: import('@playwright/test').Page) {
-  // The getSession call uses /dashboard/diagnostics/sessions/:id
-  // which is already matched by the sessions* pattern, but we need
-  // it to return a single session object rather than a list.
-  // The existing wildcard mock handles this since it matches sessions*.
-  // The session detail endpoint returns { success, data: <session> }
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions/sess-op-001', {
-    data: MOCK_SESSION_DETAIL,
-  });
+  // The sessions list mock already includes sess-op-001 via setupSessionsMock().
 
   // Mock session delta endpoint
   await page.unroute('**/api/v1/sessions/*/inventory-delta');
@@ -128,8 +128,8 @@ async function setupSessionDetailMock(page: import('@playwright/test').Page) {
     data: MOCK_SESSION_DELTA,
   });
 
-  // Mock evidence endpoint
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions/*/evidence*', {
+  // Mock evidence endpoint (V1)
+  await mockEndpoint(page, '**/api/v1/sessions/*/evidence*', {
     data: mockEvidenceData.withEvidence,
   });
 }
@@ -251,8 +251,8 @@ test.describe('Operations Tab', () => {
   test('error state displays actionable message when sessions API returns 500', async ({ mockedPage }) => {
     await setupCameraDiagnosticsMock(mockedPage);
     // Override the default sessions mock with a 500 error
-    await mockedPage.unroute('**/api/dashboard/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/dashboard/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
       status: 500,
       error: true,
       errorMessage: 'Internal Server Error',

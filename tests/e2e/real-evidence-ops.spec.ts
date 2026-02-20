@@ -18,27 +18,23 @@ const MOCK_SESSIONS = {
   data: {
     sessions: [
       {
-        id: 'sess-re-001',
-        delivery_id: 'del-re-001',
+        session_id: 'sess-re-001',
+        container_id: 'ctr-re-001',
         started_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
         status: 'active',
-        capture_count: 3,
-        last_capture_at: new Date(Date.now() - 30 * 1000).toISOString(),
+        total_captures: 3,
+        successful_captures: 3,
+        failed_captures: 0,
+        has_before_open: true,
+        has_after_close: false,
+        pair_complete: false,
+        elapsed_seconds: 900,
       },
     ],
+    total: 1,
+    queried_at: new Date().toISOString(),
   },
-};
-
-const MOCK_SESSION_DETAIL = {
-  success: true,
-  data: {
-    id: 'sess-re-001',
-    delivery_id: 'del-re-001',
-    started_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    status: 'active',
-    capture_count: 3,
-    last_capture_at: new Date(Date.now() - 30 * 1000).toISOString(),
-  },
+  timestamp: new Date().toISOString(),
 };
 
 const MOCK_DELTA_WITH_EVIDENCE = {
@@ -75,8 +71,8 @@ const MOCK_CAMERAS = [
 // ============================================================================
 
 async function setupFullMocks(page: import('@playwright/test').Page) {
-  await page.unroute('**/api/dashboard/diagnostics/sessions*');
-  await mockEndpoint(page, '**/api/dashboard/diagnostics/sessions*', {
+  await page.unroute('**/api/v1/diagnostics/sessions*');
+  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
     data: MOCK_SESSIONS,
   });
 
@@ -112,8 +108,8 @@ test.describe('Real Evidence Ops (058)', () => {
   });
 
   test('sessions API 404 shows graceful degradation', async ({ mockedPage }) => {
-    await mockedPage.unroute('**/api/dashboard/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/dashboard/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
       status: 404,
       error: true,
       errorMessage: 'Not Found',
@@ -132,8 +128,8 @@ test.describe('Real Evidence Ops (058)', () => {
 
   test('camera health loads independently of session errors', async ({ mockedPage }) => {
     // Sessions fail with 500
-    await mockedPage.unroute('**/api/dashboard/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/dashboard/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
       status: 500,
       error: true,
       errorMessage: 'Internal Server Error',
@@ -160,10 +156,8 @@ test.describe('Real Evidence Ops (058)', () => {
   test('session detail loads evidence and shows debug panel', async ({ mockedPage }) => {
     await setupFullMocks(mockedPage);
 
-    // Setup session detail and delta mocks
-    await mockEndpoint(mockedPage, '**/api/dashboard/diagnostics/sessions/sess-re-001', {
-      data: MOCK_SESSION_DETAIL,
-    });
+    // In V1, getSession() filters from the list endpoint.
+    // setupFullMocks() already mocks the sessions list with sess-re-001.
 
     await mockedPage.unroute('**/api/v1/sessions/*/inventory-delta');
     await mockEndpoint(mockedPage, '**/api/v1/sessions/*/inventory-delta', {

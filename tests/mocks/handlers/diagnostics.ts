@@ -1,6 +1,7 @@
 /**
  * MSW Handlers for Diagnostics API - DEV Observability Panels
  * Feature: 038-dev-observability-panels
+ * Feature: 059-real-ops-drilldown - V1 endpoint URLs
  *
  * Mock Service Worker handlers for diagnostics endpoints.
  */
@@ -15,9 +16,12 @@ import {
 import {
   sessionListApiResponse,
   sessionListEmptyApiResponse,
-  evidenceListApiResponse,
   evidenceListEmptyApiResponse,
+  captureBeforeOpen,
+  captureAfterClose,
+  captureS3Only,
 } from '../diagnostics/session-fixtures';
+import type { CaptureEntry, Session } from '@/infrastructure/api/diagnostics-schemas';
 
 const BASE_URL = '/api';
 
@@ -30,7 +34,7 @@ export const diagnosticsMockData = {
   storageHealth: { ...storageHealthyApiResponse },
   piOrchestratorHealthy: true,
   sessions: [...sessionListApiResponse.data.sessions],
-  evidence: [...evidenceListApiResponse.data.evidence],
+  captures: [captureBeforeOpen, captureAfterClose, captureS3Only] as CaptureEntry[],
 };
 
 // ============================================================================
@@ -73,95 +77,86 @@ export function createDiagnosticsHandlers(overrides?: Partial<typeof diagnostics
       return HttpResponse.json(data.storageHealth);
     }),
 
-    // Sessions list
-    http.get(`${BASE_URL}/dashboard/diagnostics/sessions`, async ({ request }) => {
+    // V1 Sessions list
+    http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
       await delay(75);
-
-      const url = new URL(request.url);
-      const statusFilter = url.searchParams.get('status') || 'active';
-      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
-
-      let filteredSessions = data.sessions;
-
-      if (statusFilter !== 'all') {
-        filteredSessions = filteredSessions.filter((s) => s.status === statusFilter);
-      }
-
-      filteredSessions = filteredSessions.slice(0, limit);
 
       return HttpResponse.json({
         success: true,
         data: {
-          sessions: filteredSessions,
+          sessions: data.sessions,
+          total: data.sessions.length,
+          queried_at: new Date().toISOString(),
         },
+        timestamp: new Date().toISOString(),
       });
     }),
 
-    // Session detail
-    http.get(`${BASE_URL}/dashboard/diagnostics/sessions/:sessionId`, async ({ params }) => {
-      await delay(50);
-
-      const sessionId = params.sessionId as string;
-      const session = data.sessions.find((s) => s.id === sessionId);
-
-      if (!session) {
-        return HttpResponse.json(
-          { success: false, error: 'Session not found' },
-          { status: 404 }
-        );
-      }
-
-      return HttpResponse.json({
-        success: true,
-        data: session,
-      });
-    }),
-
-    // Session evidence
+    // V1 Session evidence
     http.get(
-      `${BASE_URL}/dashboard/diagnostics/sessions/:sessionId/evidence`,
-      async ({ params, request }) => {
+      `${BASE_URL}/v1/sessions/:sessionId/evidence`,
+      async ({ params }) => {
         await delay(75);
 
         const sessionId = params.sessionId as string;
-        const url = new URL(request.url);
-        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const sessionCaptures = data.captures
+          .filter((c) => c.session_id === sessionId);
 
-        const sessionEvidence = data.evidence
-          .filter((e) => e.session_id === sessionId)
-          .slice(0, limit);
+        const successful = sessionCaptures.filter((c) => c.status === 'captured').length;
+        const failed = sessionCaptures.filter((c) => c.status !== 'captured').length;
 
         return HttpResponse.json({
           success: true,
           data: {
-            evidence: sessionEvidence,
+            session_id: sessionId,
+            container_id: data.sessions.find((s) => s.session_id === sessionId)?.container_id ?? '',
+            captures: sessionCaptures,
+            summary: {
+              total_captures: sessionCaptures.length,
+              successful_captures: successful,
+              failed_captures: failed,
+              has_before_open: sessionCaptures.some((c) => c.capture_tag === 'BEFORE_OPEN'),
+              has_after_close: sessionCaptures.some((c) => c.capture_tag === 'AFTER_CLOSE'),
+              pair_complete: sessionCaptures.some((c) => c.capture_tag === 'BEFORE_OPEN') &&
+                sessionCaptures.some((c) => c.capture_tag === 'AFTER_CLOSE'),
+            },
           },
+          timestamp: new Date().toISOString(),
         });
       }
     ),
 
-    // Presign URL
-    http.get(`${BASE_URL}/dashboard/diagnostics/images/presign`, async ({ request }) => {
-      await delay(50);
+    // V1 Evidence pair
+    http.get(
+      `${BASE_URL}/v1/sessions/:sessionId/evidence/pair`,
+      async ({ params }) => {
+        await delay(50);
 
-      const url = new URL(request.url);
-      const key = url.searchParams.get('key');
+        const sessionId = params.sessionId as string;
+        const sessionCaptures = data.captures
+          .filter((c) => c.session_id === sessionId);
 
-      if (!key) {
-        return HttpResponse.json(
-          { success: false, error: 'Missing key parameter' },
-          { status: 400 }
-        );
+        const before = sessionCaptures.find((c) => c.capture_tag === 'BEFORE_OPEN') ?? null;
+        const after = sessionCaptures.find((c) => c.capture_tag === 'AFTER_CLOSE') ?? null;
+
+        const pairStatus = before && after ? 'complete' :
+          before || after ? 'incomplete' : 'missing';
+
+        return HttpResponse.json({
+          success: true,
+          data: {
+            contract_version: 'v1',
+            session_id: sessionId,
+            container_id: data.sessions.find((s) => s.session_id === sessionId)?.container_id ?? '',
+            pair_status: pairStatus,
+            before: before ? { ...before, captured_at: before.created_at } : null,
+            after: after ? { ...after, captured_at: after.created_at } : null,
+            queried_at: new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        });
       }
-
-      return HttpResponse.json({
-        success: true,
-        data: {
-          url: `https://minio.example.com/refreshed/${key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=900`,
-          expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-        },
-      });
-    }),
+    ),
   ];
 }
 
@@ -202,7 +197,7 @@ export const diagnosticsErrorHandlers = {
     return HttpResponse.json(storageUnhealthyApiResponse);
   }),
 
-  sessionsUnavailable: http.get(`${BASE_URL}/dashboard/diagnostics/sessions`, async () => {
+  sessionsUnavailable: http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
     await delay(50);
     return HttpResponse.json(
       { error: 'Sessions endpoint not available' },
@@ -210,39 +205,36 @@ export const diagnosticsErrorHandlers = {
     );
   }),
 
-  sessionsEmpty: http.get(`${BASE_URL}/dashboard/diagnostics/sessions`, async () => {
+  sessionsEmpty: http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
     await delay(50);
     return HttpResponse.json(sessionListEmptyApiResponse);
   }),
 
   sessionNotFound: http.get(
-    `${BASE_URL}/dashboard/diagnostics/sessions/:sessionId`,
+    `${BASE_URL}/v1/diagnostics/sessions`,
     async () => {
       await delay(50);
-      return HttpResponse.json(
-        { success: false, error: 'Session not found' },
-        { status: 404 }
-      );
+      return HttpResponse.json({
+        success: true,
+        data: {
+          sessions: [] as Session[],
+          total: 0,
+          queried_at: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      });
     }
   ),
 
   evidenceEmpty: http.get(
-    `${BASE_URL}/dashboard/diagnostics/sessions/:sessionId/evidence`,
+    `${BASE_URL}/v1/sessions/:sessionId/evidence`,
     async () => {
       await delay(50);
       return HttpResponse.json(evidenceListEmptyApiResponse);
     }
   ),
 
-  presignFailed: http.get(`${BASE_URL}/dashboard/diagnostics/images/presign`, async () => {
-    await delay(50);
-    return HttpResponse.json(
-      { success: false, error: 'Image not found' },
-      { status: 404 }
-    );
-  }),
-
-  networkError: http.get(`${BASE_URL}/dashboard/diagnostics/*`, async () => {
+  networkError: http.get(`${BASE_URL}/v1/diagnostics/*`, async () => {
     await delay(100);
     return HttpResponse.error();
   }),

@@ -1,9 +1,11 @@
 /**
  * SessionDetailView Component Tests
  * Feature: 057-live-ops-viewer (Phase 4)
+ * Feature: 059-real-ops-drilldown - V1 schema reconciliation
  *
  * Tests for the session drill-down view including loading/error/not-found states,
  * correlation IDs, evidence panels, delta table, and debug info.
+ * V1: session_id, container_id, failed status, last_error display.
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -46,24 +48,47 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSessionDelta = vi.mocked(useSessionDelta);
 const mockGetLastRequestId = vi.mocked(getLastRequestId);
 
-// Test fixtures
+// Test fixtures (V1 format)
 const activeSession = {
-  id: 'sess-12345',
-  delivery_id: 'del-67890',
+  session_id: 'sess-12345',
+  container_id: 'ctr-67890',
   started_at: '2026-01-25T14:00:00Z',
   status: 'active' as const,
-  capture_count: 5,
-  last_capture_at: '2026-01-25T14:30:00Z',
+  total_captures: 5,
+  successful_captures: 4,
+  failed_captures: 1,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 240,
   is_stale: false,
 };
 
-const cancelledSession = {
-  id: 'sess-cancel',
-  delivery_id: 'del-99999',
+const failedSession = {
+  session_id: 'sess-failed',
+  container_id: 'ctr-99999',
   started_at: '2026-01-25T10:00:00Z',
-  status: 'cancelled' as const,
-  capture_count: 0,
+  status: 'failed' as const,
+  total_captures: 2,
+  successful_captures: 1,
+  failed_captures: 1,
+  has_before_open: true,
+  has_after_close: false,
+  pair_complete: false,
+  elapsed_seconds: 600,
   is_stale: false,
+};
+
+const failedSessionWithError = {
+  ...failedSession,
+  session_id: 'sess-failed-err',
+  last_error: {
+    phase: 'AFTER_CLOSE',
+    failure_reason: 'Camera timeout: device did not respond within 30s',
+    device_id: 'espcam-a1b2c3',
+    occurred_at: '2026-01-25T10:09:00Z',
+    correlation_id: 'corr-fail-001',
+  },
 };
 
 const mockDeltaWithEvidence = {
@@ -189,11 +214,11 @@ describe('SessionDetailView', () => {
 
   // ---------- Header / Session ID ----------
 
-  it('shows session ID in header', () => {
+  it('shows session_id in header', () => {
     render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
 
     expect(screen.getByText('Session Detail')).toBeInTheDocument();
-    // Session ID appears in both header and correlation IDs section
+    // session_id appears in both header and correlation IDs section
     const sessionIdElements = screen.getAllByText('sess-12345');
     expect(sessionIdElements.length).toBeGreaterThanOrEqual(1);
   });
@@ -207,15 +232,15 @@ describe('SessionDetailView', () => {
     expect(badge).toHaveTextContent('Active');
   });
 
-  it('shows "Failed" status badge for cancelled session', () => {
+  it('shows "Failed" status badge for failed session', () => {
     mockUseSession.mockReturnValue({
-      data: cancelledSession,
+      data: failedSession,
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     } as ReturnType<typeof useSession>);
 
-    render(<SessionDetailView sessionId="sess-cancel" onBack={mockOnBack} />);
+    render(<SessionDetailView sessionId="sess-failed" onBack={mockOnBack} />);
 
     const badge = screen.getByTestId('session-detail-status');
     expect(badge).toHaveTextContent('Failed');
@@ -227,16 +252,15 @@ describe('SessionDetailView', () => {
     render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
 
     expect(screen.getByText('Session:')).toBeInTheDocument();
-    // The session ID appears in both the header and the correlation IDs section
     const allSessionIds = screen.getAllByText('sess-12345');
     expect(allSessionIds.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows correlation ID - Delivery when delivery_id present', () => {
+  it('shows correlation ID - Container when container_id present', () => {
     render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
 
-    expect(screen.getByText('Delivery:')).toBeInTheDocument();
-    expect(screen.getByText('del-67890')).toBeInTheDocument();
+    expect(screen.getByText('Container:')).toBeInTheDocument();
+    expect(screen.getByText('ctr-67890')).toBeInTheDocument();
   });
 
   it('shows correlation ID - Run when delta has run_id', () => {
@@ -253,28 +277,46 @@ describe('SessionDetailView', () => {
 
   // ---------- Error section ----------
 
-  it('shows error section for cancelled session', () => {
+  it('shows generic error info for failed session without last_error', () => {
     mockUseSession.mockReturnValue({
-      data: cancelledSession,
+      data: failedSession,
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     } as ReturnType<typeof useSession>);
 
-    render(<SessionDetailView sessionId="sess-cancel" onBack={mockOnBack} />);
+    render(<SessionDetailView sessionId="sess-failed" onBack={mockOnBack} />);
 
     expect(screen.getByText('Error Information')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This session was cancelled. No additional error details available.'
+        'This session failed. No additional error details available.'
       )
     ).toBeInTheDocument();
+  });
+
+  it('shows last_error details for failed session with last_error', () => {
+    mockUseSession.mockReturnValue({
+      data: failedSessionWithError,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as ReturnType<typeof useSession>);
+
+    render(<SessionDetailView sessionId="sess-failed-err" onBack={mockOnBack} />);
+
+    expect(screen.getByTestId('session-last-error')).toBeInTheDocument();
+    expect(screen.getByText('Failure Details')).toBeInTheDocument();
+    expect(screen.getByText('Camera timeout: device did not respond within 30s')).toBeInTheDocument();
+    expect(screen.getByText('AFTER_CLOSE')).toBeInTheDocument();
+    expect(screen.getByText('espcam-a1b2c3')).toBeInTheDocument();
   });
 
   it('does NOT show error section for active session', () => {
     render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
 
     expect(screen.queryByText('Error Information')).not.toBeInTheDocument();
+    expect(screen.queryByText('Failure Details')).not.toBeInTheDocument();
   });
 
   // ---------- Evidence panels ----------
@@ -291,7 +333,7 @@ describe('SessionDetailView', () => {
     expect(screen.queryByTestId('evidence-panel')).not.toBeInTheDocument();
   });
 
-  it('falls back to EvidencePanel when no delta evidence', () => {
+  it('falls back to EvidencePanel with session_id when no delta evidence', () => {
     mockUseSessionDelta.mockReturnValue({
       data: mockDeltaNoEvidence,
       isLoading: false,

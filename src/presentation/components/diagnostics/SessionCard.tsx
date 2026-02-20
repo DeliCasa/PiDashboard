@@ -1,6 +1,7 @@
 /**
  * SessionCard Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
  *
  * Displays individual session information with status and capture details.
  */
@@ -25,13 +26,15 @@ interface SessionCardProps {
 /**
  * Format session status as display badge
  */
-function getStatusBadge(status: string, isStale?: boolean): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+function getStatusBadge(status: string, isStale?: boolean): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } {
   switch (status) {
     case 'active':
       return { label: isStale ? 'Stale' : 'Active', variant: isStale ? 'destructive' : 'default' };
-    case 'completed':
-      return { label: 'Completed', variant: 'secondary' };
-    case 'cancelled':
+    case 'complete':
+      return { label: 'Complete', variant: 'secondary' };
+    case 'partial':
+      return { label: 'Partial', variant: 'outline', className: 'border-amber-500 text-amber-600 dark:text-amber-400' };
+    case 'failed':
       return { label: 'Failed', variant: 'destructive' };
     default:
       return { label: status, variant: 'outline' };
@@ -55,32 +58,24 @@ function formatTime(isoString: string): string {
 }
 
 /**
- * Format timestamp to relative time (e.g., "2 minutes ago")
+ * Format elapsed seconds as human-readable duration (e.g., "4m", "1h 30m")
  */
-function formatRelativeTime(isoString: string): string {
-  try {
-    const date = new Date(isoString);
-    const now = Date.now();
-    const diffMs = now - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-
-    if (diffSec < 60) return `${diffSec}s ago`;
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHour < 24) return `${diffHour}h ago`;
-    return formatTime(isoString);
-  } catch {
-    return 'Unknown';
-  }
+function formatElapsedDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 export function SessionCard({ session, onSelect, showEvidence = false }: SessionCardProps) {
   const [isEvidenceOpen, setIsEvidenceOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { label: statusLabel, variant: statusVariant } = getStatusBadge(session.status, session.is_stale);
+  const { label: statusLabel, variant: statusVariant, className: statusClassName } = getStatusBadge(session.status, session.is_stale);
   const isActive = session.status === 'active';
-  const hasCaptures = session.capture_count > 0;
+  const hasCaptures = session.total_captures > 0;
 
   const handleClick = (e: React.MouseEvent) => {
     // Don't trigger card click when clicking evidence toggle
@@ -88,15 +83,15 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
       return;
     }
     if (onSelect) {
-      onSelect(session.id);
+      onSelect(session.session_id);
     }
   };
 
   const handleCopyCorrelation = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!session.delivery_id) return;
+    if (!session.container_id) return;
     try {
-      await navigator.clipboard.writeText(session.delivery_id);
+      await navigator.clipboard.writeText(session.container_id);
       setCopied(true);
       toast.success('Copied');
       setTimeout(() => setCopied(false), 2000);
@@ -107,7 +102,7 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
 
   return (
     <Card
-      data-testid={`session-card-${session.id}`}
+      data-testid={`session-card-${session.session_id}`}
       className={cn(
         'transition-all',
         isActive && session.is_stale && 'border-yellow-500/50',
@@ -118,25 +113,33 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-mono truncate" data-testid="session-id">
-            {session.id}
+            {session.session_id}
           </CardTitle>
-          <Badge variant={statusVariant} data-testid="session-status">
-            {session.is_stale && isActive && (
-              <AlertTriangle className="h-3 w-3 mr-1" />
+          <div className="flex items-center gap-1.5">
+            {session.pair_complete && (
+              <Badge variant="outline" className="text-xs border-green-500 text-green-600 dark:text-green-400" data-testid="pair-complete-badge">
+                Paired
+              </Badge>
             )}
-            {statusLabel}
-          </Badge>
+            <Badge variant={statusVariant} className={statusClassName} data-testid="session-status">
+              {session.is_stale && isActive && (
+                <AlertTriangle className="h-3 w-3 mr-1" />
+              )}
+              {statusLabel}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {/* Correlation ID (copy-able delivery_id) */}
-        {session.delivery_id && (
+        {/* Container ID (copy-able container_id) */}
+        {session.container_id && (
           <div
             className="flex items-center gap-2 text-sm text-muted-foreground"
             data-testid="session-card-correlation"
           >
             <Package className="h-4 w-4 shrink-0" />
-            <span className="font-mono text-xs truncate">{session.delivery_id}</span>
+            <span className="text-xs text-muted-foreground">Container:</span>
+            <span className="font-mono text-xs truncate">{session.container_id}</span>
             <Button
               variant="ghost"
               size="icon"
@@ -164,22 +167,20 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
           <div className="flex items-center gap-2 text-sm" data-testid="capture-count">
             <Camera className="h-4 w-4" />
             <span>
-              {session.capture_count} capture{session.capture_count !== 1 ? 's' : ''}
+              {session.successful_captures}/{session.total_captures} capture{session.total_captures !== 1 ? 's' : ''}
             </span>
           </div>
 
-          {/* Last capture timestamp */}
-          {hasCaptures && session.last_capture_at && (
-            <span
-              className={cn(
-                'text-xs',
-                session.is_stale ? 'text-yellow-500 font-medium' : 'text-muted-foreground'
-              )}
-              data-testid="last-capture"
-            >
-              {formatRelativeTime(session.last_capture_at)}
-            </span>
-          )}
+          {/* Elapsed duration */}
+          <span
+            className={cn(
+              'text-xs',
+              session.is_stale ? 'text-yellow-500 font-medium' : 'text-muted-foreground'
+            )}
+            data-testid="elapsed-duration"
+          >
+            {formatElapsedDuration(session.elapsed_seconds)}
+          </span>
         </div>
 
         {/* Stale warning */}
@@ -218,7 +219,7 @@ export function SessionCard({ session, onSelect, showEvidence = false }: Session
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="pt-2" data-testid="evidence-section">
-                <EvidencePanel sessionId={session.id} className="border-0 shadow-none" />
+                <EvidencePanel sessionId={session.session_id} className="border-0 shadow-none" />
               </div>
             </CollapsibleContent>
           </Collapsible>

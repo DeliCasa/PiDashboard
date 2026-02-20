@@ -1,6 +1,7 @@
 /**
- * Evidence Hooks - DEV Observability Panels + Camera Diagnostics
- * Features: 038-dev-observability-panels, 042-diagnostics-integration
+ * Evidence Hooks - Real Ops Drilldown + Camera Diagnostics
+ * Feature: 059-real-ops-drilldown (V1 schema reconciliation)
+ * Feature: 042-diagnostics-integration (camera evidence capture)
  *
  * React Query hooks for evidence capture data and camera evidence capture.
  */
@@ -15,13 +16,13 @@ import { queryKeys } from '@/lib/queryClient';
 const EVIDENCE_POLLING_INTERVAL = 10000;
 
 interface UseSessionEvidenceOptions {
-  limit?: number;
   enabled?: boolean;
   pollingInterval?: number;
 }
 
 /**
- * Hook for fetching evidence captures for a session
+ * Hook for fetching evidence captures for a session (V1 format).
+ * Returns CaptureEntry[] sorted by created_at.
  *
  * @param sessionId - The session ID to fetch evidence for
  * @param options - Query options
@@ -31,14 +32,13 @@ export function useSessionEvidence(
   options: UseSessionEvidenceOptions = {}
 ) {
   const {
-    limit = 50,
     enabled = true,
     pollingInterval = EVIDENCE_POLLING_INTERVAL,
   } = options;
 
   return useQuery({
     queryKey: queryKeys.diagnosticsEvidence(sessionId || ''),
-    queryFn: () => (sessionId ? evidenceApi.listSessionEvidence(sessionId, { limit }) : []),
+    queryFn: () => (sessionId ? evidenceApi.listSessionEvidence(sessionId) : []),
     enabled: enabled && !!sessionId,
     refetchInterval: pollingInterval,
     placeholderData: (previousData) => previousData,
@@ -46,17 +46,28 @@ export function useSessionEvidence(
 }
 
 /**
- * Hook for refreshing presigned URL when expired
+ * Hook for fetching evidence pair (structured before/after) for a session.
+ * Polls every 10 seconds for active sessions awaiting pair completion.
+ *
+ * @param sessionId - The session ID
+ * @param options - Query options
  */
-export function useRefreshPresignedUrl() {
-  return {
-    refreshUrl: async (imageKey: string): Promise<string | null> => {
-      const result = await evidenceApi.refreshPresignedUrl(imageKey);
-      return result?.url ?? null;
-    },
-    isUrlExpired: (expiresAt: string, thresholdMs?: number) =>
-      evidenceApi.isUrlExpired(expiresAt, thresholdMs),
-  };
+export function useEvidencePair(
+  sessionId: string | null,
+  options: UseSessionEvidenceOptions = {}
+) {
+  const {
+    enabled = true,
+    pollingInterval = EVIDENCE_POLLING_INTERVAL,
+  } = options;
+
+  return useQuery({
+    queryKey: [...queryKeys.diagnosticsEvidence(sessionId || ''), 'pair'],
+    queryFn: () => (sessionId ? evidenceApi.getEvidencePair(sessionId) : null),
+    enabled: enabled && !!sessionId,
+    refetchInterval: pollingInterval,
+    placeholderData: (previousData) => previousData,
+  });
 }
 
 /**
@@ -126,15 +137,18 @@ export function useEvidenceCapture(
 }
 
 /**
- * Hook utilities for evidence download
+ * Hook utilities for evidence download.
+ * Supports both CapturedEvidence (camera capture) and CaptureEntry (session evidence).
  */
 export function useEvidenceDownload() {
   return {
-    /** Convert evidence to blob for download */
+    /** Convert CapturedEvidence to blob for download */
     toBlob: evidenceApi.toBlob,
-    /** Get formatted filename for evidence */
+    /** Get formatted filename for CapturedEvidence */
     getFilename: evidenceApi.getFilename,
-    /** Trigger browser download of evidence */
+    /** Trigger browser download of CapturedEvidence */
     download: evidenceApi.download,
+    /** Trigger browser download of CaptureEntry (session evidence) */
+    downloadCapture: evidenceApi.downloadCapture,
   };
 }
