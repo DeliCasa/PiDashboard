@@ -221,4 +221,42 @@ describe('CameraHealthDashboard', () => {
       expect(summary).not.toHaveTextContent('1 cameras');
     });
   });
+
+  // ==========================================================================
+  // Feature 058: Camera staleness & error boundary (T016)
+  // ==========================================================================
+
+  describe('staleness and diagnostics (T016)', () => {
+    it('should render stale badge for camera not seen >5 minutes', () => {
+      const staleCamera: CameraDiagnostics = {
+        ...onlineCamera,
+        last_seen: new Date(Date.now() - 6 * 60_000).toISOString(),
+      };
+
+      mockHookReturn({ data: [staleCamera] });
+
+      render(<CameraHealthDashboard />);
+
+      expect(screen.getByTestId('camera-stale-badge')).toBeInTheDocument();
+    });
+
+    it('should render offline camera distinctly from discovered camera', () => {
+      const discoveredCamera: CameraDiagnostics = {
+        camera_id: 'espcam-NEW123',
+        name: 'New Camera',
+        status: 'discovered',
+        last_seen: new Date(Date.now() - 5_000).toISOString(),
+      };
+
+      mockHookReturn({ data: [offlineCamera, discoveredCamera] });
+
+      render(<CameraHealthDashboard />);
+
+      const cards = screen.getAllByTestId('camera-health-card');
+      expect(cards.length).toBe(2);
+      // Offline card has yellow border, discovered has dashed
+      expect(cards[0]).toHaveClass('border-yellow-500/50');
+      expect(cards[1]).toHaveClass('border-dashed');
+    });
+  });
 });

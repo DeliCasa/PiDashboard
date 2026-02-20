@@ -17,9 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Image, RefreshCw, AlertCircle, ImageOff } from 'lucide-react';
+import { Image, RefreshCw, AlertCircle, ImageOff, Info } from 'lucide-react';
 import { useSessionEvidence, useInvalidateEvidence } from '@/application/hooks/useEvidence';
 import { useContainerCameraIds } from '@/application/hooks/useContainers';
+import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { EvidenceThumbnail } from './EvidenceThumbnail';
 import { EvidencePreviewModal } from './EvidencePreviewModal';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
@@ -100,6 +101,28 @@ export function EvidencePanel({ sessionId, className }: EvidencePanelProps) {
 
   // Error state
   if (error && !evidence) {
+    // Graceful degradation for 404/503 (feature not available)
+    if (isFeatureUnavailable(error)) {
+      return (
+        <Card className={className} data-testid="evidence-panel">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Image className="h-4 w-4" />
+              Evidence Captures
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-4" data-testid="evidence-unavailable">
+              <Info className="mx-auto mb-2 h-6 w-6 text-blue-500" />
+              <p className="text-xs text-muted-foreground">
+                Evidence data is not available on this PiOrchestrator version.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
     return (
       <Card className={className} data-testid="evidence-panel">
         <CardHeader className="pb-2">

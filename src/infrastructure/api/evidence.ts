@@ -127,7 +127,9 @@ export const evidenceApi = {
   },
 
   /**
-   * Get a fresh URL, refreshing if necessary
+   * Get a fresh URL, refreshing if necessary.
+   * Extracts the object key from the presigned URL and calls refreshPresignedUrl()
+   * when the URL is expired or about to expire.
    */
   getFreshUrl: async (
     evidence: EvidenceCapture,
@@ -140,10 +142,18 @@ export const evidenceApi = {
       return url;
     }
 
-    // URL expired, need to refresh
-    // Extract key from the URL - we'll need the original key stored on the server
-    // For now, return the original URL and let the component handle the refresh
-    console.warn('Evidence URL expired, returning original URL');
+    // URL expired — extract object key and refresh
+    try {
+      const parsedUrl = new URL(url);
+      const objectKey = decodeURIComponent(parsedUrl.pathname.slice(1));
+      const result = await evidenceApi.refreshPresignedUrl(objectKey);
+      if (result) {
+        return result.url;
+      }
+    } catch {
+      // URL parsing or refresh failed — fall through to return original
+    }
+
     return url;
   },
 

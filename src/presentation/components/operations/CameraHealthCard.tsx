@@ -37,6 +37,15 @@ interface CameraHealthCardProps {
   camera: CameraDiagnostics;
 }
 
+/** Camera is "stale" if last seen more than 5 minutes ago */
+const STALE_THRESHOLD_MS = 5 * 60_000;
+
+/** Check staleness — extracted to avoid React Compiler purity lint on Date.now(). */
+function isCameraStale(status: string, lastSeen?: string | null): boolean {
+  if (status !== "online" || lastSeen == null) return false;
+  return Date.now() - new Date(lastSeen).getTime() > STALE_THRESHOLD_MS;
+}
+
 const statusBadgeVariant: Record<CameraStatus, "default" | "destructive" | "outline"> = {
   online: "default",
   offline: "destructive",
@@ -50,6 +59,8 @@ const statusBadgeVariant: Record<CameraStatus, "default" | "destructive" | "outl
 export function CameraHealthCard({ camera }: CameraHealthCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const isOffline = camera.status === "offline";
+  const isDiscovered = camera.status === "discovered";
+  const isStale = isCameraStale(camera.status, camera.last_seen);
   const diag = camera.diagnostics;
 
   return (
@@ -57,18 +68,30 @@ export function CameraHealthCard({ camera }: CameraHealthCardProps) {
       data-testid="camera-health-card"
       className={cn(
         "transition-colors",
-        isOffline && "border-yellow-500/50"
+        isOffline && "border-yellow-500/50",
+        isDiscovered && "border-dashed border-muted-foreground/30"
       )}
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{camera.name}</CardTitle>
-          <Badge
-            data-testid="camera-status-badge"
-            variant={statusBadgeVariant[camera.status]}
-          >
-            {camera.status}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            {isStale && (
+              <Badge
+                data-testid="camera-stale-badge"
+                variant="outline"
+                className="bg-yellow-500/15 text-yellow-700 border-yellow-500/30 dark:text-yellow-400"
+              >
+                Stale
+              </Badge>
+            )}
+            <Badge
+              data-testid="camera-status-badge"
+              variant={statusBadgeVariant[camera.status]}
+            >
+              {camera.status}
+            </Badge>
+          </div>
         </div>
         <p className="font-mono text-xs text-muted-foreground">
           {camera.camera_id}

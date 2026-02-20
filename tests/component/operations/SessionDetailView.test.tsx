@@ -328,4 +328,66 @@ describe('SessionDetailView', () => {
 
     expect(screen.getByTestId('session-debug-info')).toBeInTheDocument();
   });
+
+  // ==========================================================================
+  // Feature 058: Delta error isolation (T021)
+  // ==========================================================================
+
+  describe('delta error isolation (T021)', () => {
+    it('shows "Delta data unavailable" when session loads but delta fails', () => {
+      mockUseSessionDelta.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Delta fetch failed'),
+      } as unknown as ReturnType<typeof useSessionDelta>);
+
+      render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
+
+      expect(screen.getByTestId('delta-unavailable')).toBeInTheDocument();
+      expect(screen.getByText(/Delta data unavailable/)).toBeInTheDocument();
+      // Session metadata should still be visible
+      expect(screen.getByTestId('session-detail-view')).toBeInTheDocument();
+      expect(screen.getByText('Session Detail')).toBeInTheDocument();
+    });
+
+    it('session metadata always visible when session fetch succeeds', () => {
+      mockUseSessionDelta.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Delta error'),
+      } as unknown as ReturnType<typeof useSessionDelta>);
+
+      render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
+
+      // Session ID, status badge, timestamps, correlation IDs still visible
+      expect(screen.getByTestId('session-detail-status')).toBeInTheDocument();
+      const sessionIdElements = screen.getAllByText('sess-12345');
+      expect(sessionIdElements.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('evidence panel still renders when delta fails', () => {
+      mockUseSessionDelta.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Delta error'),
+      } as unknown as ReturnType<typeof useSessionDelta>);
+
+      render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
+
+      // Falls back to EvidencePanel since no delta evidence
+      expect(screen.getByTestId('evidence-panel')).toBeInTheDocument();
+    });
+
+    it('does NOT show delta-unavailable when delta loads successfully', () => {
+      mockUseSessionDelta.mockReturnValue({
+        data: mockDeltaWithEvidence,
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useSessionDelta>);
+
+      render(<SessionDetailView sessionId="sess-12345" onBack={mockOnBack} />);
+
+      expect(screen.queryByTestId('delta-unavailable')).not.toBeInTheDocument();
+    });
+  });
 });

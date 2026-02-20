@@ -212,5 +212,58 @@ describe('CameraHealthCard', () => {
       const card = screen.getByTestId('camera-health-card');
       expect(card).not.toHaveClass('border-yellow-500/50');
     });
+
+    it('should have dashed border for discovered camera', () => {
+      render(<CameraHealthCard camera={cameraWithoutDiagnostics} />);
+
+      const card = screen.getByTestId('camera-health-card');
+      expect(card).toHaveClass('border-dashed');
+    });
+  });
+
+  // ==========================================================================
+  // Feature 058: Staleness badge (T015/T016)
+  // ==========================================================================
+
+  describe('staleness badge', () => {
+    it('should show Stale badge when online camera not seen for >5 minutes', () => {
+      const staleCamera: CameraDiagnostics = {
+        ...onlineCameraFull,
+        last_seen: new Date(Date.now() - 6 * 60_000).toISOString(), // 6 minutes ago
+      };
+
+      render(<CameraHealthCard camera={staleCamera} />);
+
+      expect(screen.getByTestId('camera-stale-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('camera-stale-badge')).toHaveTextContent('Stale');
+    });
+
+    it('should NOT show Stale badge when camera seen recently (<5 minutes)', () => {
+      render(<CameraHealthCard camera={onlineCameraFull} />);
+
+      expect(screen.queryByTestId('camera-stale-badge')).not.toBeInTheDocument();
+    });
+
+    it('should NOT show Stale badge for offline camera even if stale', () => {
+      render(<CameraHealthCard camera={offlineCamera} />);
+
+      expect(screen.queryByTestId('camera-stale-badge')).not.toBeInTheDocument();
+    });
+
+    it('offline camera is visually distinct from discovered camera', () => {
+      const { unmount } = render(<CameraHealthCard camera={offlineCamera} />);
+
+      const offlineCard = screen.getByTestId('camera-health-card');
+      expect(offlineCard).toHaveClass('border-yellow-500/50');
+      expect(offlineCard).not.toHaveClass('border-dashed');
+
+      unmount();
+
+      render(<CameraHealthCard camera={cameraWithoutDiagnostics} />);
+
+      const discoveredCard = screen.getByTestId('camera-health-card');
+      expect(discoveredCard).toHaveClass('border-dashed');
+      expect(discoveredCard).not.toHaveClass('border-yellow-500/50');
+    });
   });
 });
