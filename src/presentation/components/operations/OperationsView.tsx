@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { SessionListView } from './SessionListView';
 import { CameraHealthDashboard } from './CameraHealthDashboard';
 import { SessionDetailView } from './SessionDetailView';
+import { SubsystemErrorBoundary } from '@/presentation/components/common/SubsystemErrorBoundary';
 
 export function OperationsView() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -26,10 +27,14 @@ export function OperationsView() {
   return (
     <div data-testid="operations-view" className="space-y-6 lg:grid lg:grid-cols-3 lg:gap-6 lg:space-y-0">
       <div className="lg:col-span-2">
-        <SessionListView onSessionSelect={setSelectedSessionId} />
+        <SubsystemErrorBoundary subsystemName="Sessions">
+          <SessionListView onSessionSelect={setSelectedSessionId} />
+        </SubsystemErrorBoundary>
       </div>
       <div className="lg:col-span-1">
-        <CameraHealthDashboard />
+        <SubsystemErrorBoundary subsystemName="Camera Health">
+          <CameraHealthDashboard />
+        </SubsystemErrorBoundary>
       </div>
     </div>
   );

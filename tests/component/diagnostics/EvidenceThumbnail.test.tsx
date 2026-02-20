@@ -5,10 +5,18 @@
  * Tests for evidence thumbnail display.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '../../setup/test-utils';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '../../setup/test-utils';
 import { EvidenceThumbnail } from '@/presentation/components/diagnostics/EvidenceThumbnail';
+import { evidenceApi } from '@/infrastructure/api/evidence';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
+
+// Mock evidence API for auto-refresh tests
+vi.mock('@/infrastructure/api/evidence', () => ({
+  evidenceApi: {
+    refreshPresignedUrl: vi.fn(),
+  },
+}));
 
 // Test fixtures
 const mockEvidence: EvidenceCapture = {
@@ -57,14 +65,17 @@ describe('EvidenceThumbnail', () => {
   });
 
   describe('error state', () => {
-    it('should show error state when image fails to load', () => {
+    it('should show error state when image fails to load', async () => {
       render(<EvidenceThumbnail evidence={mockEvidence} />);
 
       const img = screen.getByRole('img');
       fireEvent.error(img);
 
-      expect(screen.getByTestId('thumbnail-error')).toBeInTheDocument();
-      expect(screen.getByText('Failed to load')).toBeInTheDocument();
+      // After auto-refresh attempt (mock returns undefined → fails), shows permanent error
+      await waitFor(() => {
+        expect(screen.getByTestId('thumbnail-error')).toBeInTheDocument();
+        expect(screen.getByText('Failed to load')).toBeInTheDocument();
+      });
     });
   });
 
@@ -116,6 +127,119 @@ describe('EvidenceThumbnail', () => {
 
       const img = screen.getByRole('img');
       expect(img).toHaveAttribute('loading', 'lazy');
+    });
+  });
+
+  describe('auto-refresh on error (T012)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should call refreshPresignedUrl when image fails to load', async () => {
+      const freshUrl = 'https://example.com/fresh-thumb.jpg';
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce({
+        url: freshUrl,
+        expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+      });
+
+      render(<EvidenceThumbnail evidence={mockEvidence} />);
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(evidenceApi.refreshPresignedUrl).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should update image src after successful refresh', async () => {
+      const freshUrl = 'https://example.com/fresh-thumb.jpg';
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce({
+        url: freshUrl,
+        expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+      });
+
+      render(<EvidenceThumbnail evidence={mockEvidence} />);
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(img).toHaveAttribute('src', freshUrl);
+      });
+    });
+
+    it('should show failed state when refresh returns null', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
+
+      render(<EvidenceThumbnail evidence={mockEvidence} />);
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('thumbnail-retry-button')).toBeInTheDocument();
+      });
+    });
+
+    it('should show failed state when refresh throws', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockRejectedValueOnce(new Error('Network'));
+
+      render(<EvidenceThumbnail evidence={mockEvidence} />);
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('thumbnail-retry-button')).toBeInTheDocument();
+      });
+    });
+
+    it('should not retry more than once (max 1 auto-retry)', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValue({
+        url: 'https://example.com/fresh.jpg',
+        expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+      });
+
+      render(<EvidenceThumbnail evidence={mockEvidence} />);
+
+      const img = screen.getByRole('img');
+
+      // First error triggers auto-refresh
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(img).toHaveAttribute('src', 'https://example.com/fresh.jpg');
+      });
+
+      // Second error (from refreshed URL also failing) should go to failed state
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('thumbnail-retry-button')).toBeInTheDocument();
+      });
+
+      // Should only have called refresh once
+      expect(evidenceApi.refreshPresignedUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('retry button resets state and allows re-loading', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
+
+      render(<EvidenceThumbnail evidence={mockEvidence} onClick={() => {}} />);
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('thumbnail-retry-button')).toBeInTheDocument();
+      });
+
+      // Click retry
+      fireEvent.click(screen.getByTestId('thumbnail-retry-button'));
+
+      // Should reset to loading state with original URL
+      expect(img).toHaveAttribute('src', mockEvidence.thumbnail_url);
     });
   });
 });

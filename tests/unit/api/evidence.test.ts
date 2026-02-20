@@ -12,6 +12,7 @@ import {
   evidenceListApiResponse,
   evidenceListEmptyApiResponse,
   presignApiResponse,
+  validEvidenceCapture,
 } from '../../mocks/diagnostics/session-fixtures';
 
 // Mock the apiClient
@@ -158,6 +159,95 @@ describe('Evidence API Client', () => {
       vi.mocked(apiClient.get).mockRejectedValueOnce(error);
 
       await expect(evidenceApi.refreshPresignedUrl('test.jpg')).rejects.toThrow('Connection refused');
+    });
+  });
+
+  describe('getFreshUrl', () => {
+    // Fake time is 2026-01-25T15:00:00Z — build dates relative to it
+    const FAKE_NOW = new Date('2026-01-25T15:00:00Z').getTime();
+
+    function makeExpiredEvidence() {
+      return {
+        ...validEvidenceCapture,
+        thumbnail_url: 'https://minio.example.com/thumbs/ev-001.jpg?X-Amz-Expires=900',
+        full_url: 'https://minio.example.com/full/ev-001.jpg?X-Amz-Expires=900',
+        expires_at: new Date(FAKE_NOW - 5 * 60_000).toISOString(), // expired 5 min ago
+      };
+    }
+
+    function makeFreshEvidence() {
+      return {
+        ...validEvidenceCapture,
+        expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(), // valid for 15 min
+      };
+    }
+
+    it('should return original URL when not expired', async () => {
+      const fresh = makeFreshEvidence();
+      const result = await evidenceApi.getFreshUrl(fresh);
+      expect(result).toBe(fresh.thumbnail_url);
+      expect(apiClient.get).not.toHaveBeenCalled();
+    });
+
+    it('should call refreshPresignedUrl when expired and return fresh URL', async () => {
+      const expired = makeExpiredEvidence();
+      const freshUrl = 'https://minio.example.com/presigned/fresh-ev-001.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256';
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        success: true,
+        data: {
+          url: freshUrl,
+          expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(),
+        },
+      });
+
+      const result = await evidenceApi.getFreshUrl(expired);
+
+      expect(apiClient.get).toHaveBeenCalled();
+      expect(result).toBe(freshUrl);
+    });
+
+    it('should return original URL when refresh fails', async () => {
+      const expired = makeExpiredEvidence();
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        success: false,
+      });
+
+      const result = await evidenceApi.getFreshUrl(expired);
+
+      expect(apiClient.get).toHaveBeenCalled();
+      expect(result).toBe(expired.thumbnail_url);
+    });
+
+    it('should return original URL when refresh throws', async () => {
+      const expired = makeExpiredEvidence();
+      vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await evidenceApi.getFreshUrl(expired);
+
+      expect(result).toBe(expired.thumbnail_url);
+    });
+
+    it('should use full_url when urlType is full', async () => {
+      const fresh = makeFreshEvidence();
+      const result = await evidenceApi.getFreshUrl(fresh, 'full');
+      expect(result).toBe(fresh.full_url);
+    });
+
+    it('should extract correct object key from expired URL for refresh', async () => {
+      const expired = makeExpiredEvidence();
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        success: true,
+        data: {
+          url: 'https://minio.example.com/presigned/fresh.jpg',
+          expires_at: new Date(FAKE_NOW + 15 * 60_000).toISOString(),
+        },
+      });
+
+      await evidenceApi.getFreshUrl(expired);
+
+      const callArg = vi.mocked(apiClient.get).mock.calls[0][0];
+      // Object key should be extracted from thumbnail URL pathname (without leading slash)
+      expect(callArg).toContain('key=thumbs%2Fev-001.jpg');
     });
   });
 

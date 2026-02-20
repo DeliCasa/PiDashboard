@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { EvidencePanel } from '@/presentation/components/diagnostics/EvidencePanel';
+import { ApiError } from '@/infrastructure/api/client';
 import * as useEvidenceModule from '@/application/hooks/useEvidence';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
 
@@ -141,6 +142,37 @@ describe('EvidencePanel', () => {
 
       expect(screen.getByTestId('evidence-error')).toBeInTheDocument();
       expect(screen.getByText('Failed to load evidence')).toBeInTheDocument();
+    });
+
+    it('should show graceful degradation UI on 404 error', () => {
+      vi.mocked(useEvidenceModule.useSessionEvidence).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isFetching: false,
+        error: new ApiError(404, 'Not found'),
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useEvidenceModule.useSessionEvidence>);
+
+      render(<EvidencePanel sessionId="sess-12345" />);
+
+      expect(screen.getByTestId('evidence-unavailable')).toBeInTheDocument();
+      expect(
+        screen.getByText(/not available on this PiOrchestrator version/i)
+      ).toBeInTheDocument();
+    });
+
+    it('should show graceful degradation UI on 503 error', () => {
+      vi.mocked(useEvidenceModule.useSessionEvidence).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isFetching: false,
+        error: new ApiError(503, 'Service unavailable'),
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useEvidenceModule.useSessionEvidence>);
+
+      render(<EvidencePanel sessionId="sess-12345" />);
+
+      expect(screen.getByTestId('evidence-unavailable')).toBeInTheDocument();
     });
 
     it('should call refetch when retry clicked', async () => {

@@ -7,13 +7,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '../../setup/test-utils';
+import { render, screen, fireEvent, waitFor } from '../../setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { EvidencePreviewModal } from '@/presentation/components/diagnostics/EvidencePreviewModal';
+import { evidenceApi } from '@/infrastructure/api/evidence';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+// Mock evidence API for auto-refresh tests
+vi.mock('@/infrastructure/api/evidence', () => ({
+  evidenceApi: {
+    refreshPresignedUrl: vi.fn(),
+  },
+}));
 
 // Test fixture
 const mockEvidence: EvidenceCapture = {
@@ -199,5 +207,78 @@ describe('EvidencePreviewModal', () => {
     await user.click(radixCloseBtn ?? headerCloseBtn);
 
     expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  describe('auto-refresh on error (T013)', () => {
+    it('should call refreshPresignedUrl when full image fails to load', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce({
+        url: 'https://example.com/fresh-full.jpg',
+        expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+      });
+
+      render(
+        <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
+      );
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(evidenceApi.refreshPresignedUrl).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should show retry button when refresh fails permanently', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
+
+      render(
+        <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
+      );
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('preview-retry-button')).toBeInTheDocument();
+      });
+    });
+
+    it('should show "Image unavailable" text on permanent failure', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
+
+      render(
+        <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
+      );
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByText('Image unavailable')).toBeInTheDocument();
+      });
+    });
+
+    it('retry button resets and allows re-loading', async () => {
+      vi.mocked(evidenceApi.refreshPresignedUrl).mockResolvedValueOnce(null);
+
+      render(
+        <EvidencePreviewModal evidence={mockEvidence} open={true} onClose={mockOnClose} />
+      );
+
+      const img = screen.getByRole('img');
+      fireEvent.error(img);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('preview-retry-button')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('preview-retry-button'));
+
+      // After retry, should be back in loading/attempting state
+      // The image src should be reset to original
+      await waitFor(() => {
+        expect(screen.queryByTestId('preview-retry-button')).not.toBeInTheDocument();
+      });
+    });
   });
 });

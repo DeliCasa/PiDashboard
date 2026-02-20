@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Clock,
   Copy,
+  Info,
   RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ import { formatTime, formatRelativeTime } from '@/lib/diagnostics-utils';
 import { EvidencePanel } from '@/presentation/components/diagnostics/EvidencePanel';
 import { InventoryEvidencePanel } from '@/presentation/components/inventory/InventoryEvidencePanel';
 import { InventoryDeltaTable } from '@/presentation/components/inventory/InventoryDeltaTable';
+import { SubsystemErrorBoundary } from '@/presentation/components/common/SubsystemErrorBoundary';
 import type { DeltaEntry } from '@/domain/types/inventory';
 
 // ============================================================================
@@ -143,7 +145,7 @@ export function SessionDetailView({ sessionId, onBack }: SessionDetailViewProps)
     refetch: refetchSession,
   } = useSession(sessionId);
 
-  const { data: deltaRun, isLoading: deltaLoading } = useSessionDelta(sessionId);
+  const { data: deltaRun, isLoading: deltaLoading, error: deltaError } = useSessionDelta(sessionId);
 
   // ---- Loading State ----
   if (sessionLoading) {
@@ -305,36 +307,54 @@ export function SessionDetailView({ sessionId, onBack }: SessionDetailViewProps)
         </Card>
       )}
 
-      {/* ---- Evidence Section ---- */}
-      {hasDeltaEvidence ? (
-        <InventoryEvidencePanel evidence={deltaRun!.evidence!} />
-      ) : (
-        <EvidencePanel sessionId={session.id} />
-      )}
+      {/* ---- Evidence & Delta Section (isolated) ---- */}
+      <SubsystemErrorBoundary subsystemName="Evidence & Analysis">
+        {/* Delta error info card (session loaded but delta failed) */}
+        {deltaError && !deltaRun && (
+          <Card
+            className="border-blue-500/30 bg-blue-500/10"
+            data-testid="delta-unavailable"
+          >
+            <CardContent className="flex items-center gap-3 py-4">
+              <Info className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                Delta data unavailable — evidence images may still load below.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* ---- Delta Table Section ---- */}
-      {deltaEntries && deltaEntries.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Inventory Delta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <InventoryDeltaTable delta={deltaEntries} />
-          </CardContent>
-        </Card>
-      )}
+        {/* Evidence panel */}
+        {hasDeltaEvidence ? (
+          <InventoryEvidencePanel evidence={deltaRun!.evidence!} />
+        ) : (
+          <EvidencePanel sessionId={session.id} />
+        )}
 
-      {/* ---- Delta Loading Skeleton ---- */}
-      {deltaLoading && !deltaRun && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Inventory Delta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-32 w-full rounded-md" />
-          </CardContent>
-        </Card>
-      )}
+        {/* Delta Table Section */}
+        {deltaEntries && deltaEntries.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Inventory Delta</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InventoryDeltaTable delta={deltaEntries} />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Delta Loading Skeleton */}
+        {deltaLoading && !deltaRun && !deltaError && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Inventory Delta</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-32 w-full rounded-md" />
+            </CardContent>
+          </Card>
+        )}
+      </SubsystemErrorBoundary>
 
       {/* ---- Debug Info ---- */}
       <Collapsible

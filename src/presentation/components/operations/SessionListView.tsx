@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { RefreshCw, AlertCircle, FolderOpen } from 'lucide-react';
+import { RefreshCw, AlertCircle, FolderOpen, Info } from 'lucide-react';
 import { useSessions, useRefreshSessions } from '@/application/hooks/useSessions';
+import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { SessionCard } from '@/presentation/components/diagnostics/SessionCard';
 import type { SessionWithStale } from '@/infrastructure/api/diagnostics-schemas';
 import { cn } from '@/lib/utils';
@@ -42,7 +43,7 @@ export function SessionListView({ onSessionSelect }: SessionListViewProps) {
   const [statusFilter, setStatusFilter] = useState('all');
 
   const queryStatus = TAB_STATUS_MAP[statusFilter] ?? 'all';
-  const { data, isLoading, isError, isFetching, refetch } = useSessions({
+  const { data, isLoading, isError, error, isFetching, refetch } = useSessions({
     status: queryStatus,
     limit: 20,
   });
@@ -73,6 +74,22 @@ export function SessionListView({ onSessionSelect }: SessionListViewProps) {
 
   // Error state
   if (isError) {
+    // Graceful degradation for 404/503 (feature not available on this PiOrchestrator version)
+    if (isFeatureUnavailable(error)) {
+      return (
+        <div data-testid="session-list-view" className="space-y-4">
+          <div
+            data-testid="session-list-unavailable"
+            className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-6 text-center text-sm text-blue-700 dark:text-blue-400"
+          >
+            <Info className="mx-auto mb-2 h-6 w-6" />
+            Sessions not available on this PiOrchestrator version.
+          </div>
+        </div>
+      );
+    }
+
+    // Actionable error for other failures
     return (
       <div data-testid="session-list-view" className="space-y-4">
         <div
@@ -80,7 +97,9 @@ export function SessionListView({ onSessionSelect }: SessionListViewProps) {
           className="flex flex-col items-center justify-center gap-3 py-12 text-center"
         >
           <AlertCircle className="h-10 w-10 text-destructive" />
-          <p className="text-sm text-muted-foreground">Failed to load sessions</p>
+          <p className="text-sm text-muted-foreground">
+            Unable to load sessions — PiOrchestrator may be unreachable. Check the service status or retry.
+          </p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Retry
           </Button>

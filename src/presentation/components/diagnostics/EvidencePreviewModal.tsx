@@ -2,11 +2,14 @@
  * EvidencePreviewModal Component - DEV Observability Panels
  * Feature: 038-dev-observability-panels
  * Feature: 057-live-ops-viewer (Phase 4) - Debug Info section
+ * Feature: 058 - Presigned URL auto-refresh on expiration error
  *
  * Full-screen image preview modal for evidence captures.
+ * Automatically attempts to refresh presigned URLs when image loading fails
+ * due to URL expiration. Falls back to a permanent error state with retry.
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,12 +32,14 @@ import {
   Download,
   ExternalLink,
   ImageOff,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { EvidenceCapture } from '@/infrastructure/api/diagnostics-schemas';
 import { formatTime } from '@/lib/diagnostics-utils';
+import { evidenceApi } from '@/infrastructure/api/evidence';
 
 /**
  * Extract the object key from a presigned URL by parsing the pathname.
@@ -55,26 +60,75 @@ interface EvidencePreviewModalProps {
   onClose: () => void;
 }
 
-type LoadState = 'loading' | 'loaded' | 'error';
+type LoadState = 'loading' | 'loaded' | 'error' | 'refreshing' | 'failed';
 
 export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePreviewModalProps) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [debugOpen, setDebugOpen] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [imageSrc, setImageSrc] = useState<string>(evidence?.full_url ?? '');
+  const hasAutoRetried = useRef(false);
+
+  // Reset imageSrc and retry state when evidence changes
+  useEffect(() => {
+    if (evidence) {
+      setImageSrc(evidence.full_url);
+      hasAutoRetried.current = false;
+      setLoadState('loading');
+    }
+  }, [evidence?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      const timeout = setTimeout(() => setLoadState('loading'), 100);
+      hasAutoRetried.current = false;
+      return () => clearTimeout(timeout);
+    }
+  }, [open]);
 
   const handleLoad = () => {
     setLoadState('loaded');
   };
 
-  const handleError = () => {
-    setLoadState('error');
+  const handleError = async () => {
+    if (!evidence) return;
+
+    if (hasAutoRetried.current) {
+      setLoadState('failed');
+      return;
+    }
+
+    hasAutoRetried.current = true;
+    setLoadState('refreshing');
+
+    try {
+      const objectKey = extractObjectKey(evidence.full_url);
+      const result = await evidenceApi.refreshPresignedUrl(objectKey);
+
+      if (result) {
+        setImageSrc(result.url);
+        setLoadState('loading');
+      } else {
+        setLoadState('failed');
+      }
+    } catch {
+      setLoadState('failed');
+    }
+  };
+
+  const handleRetry = () => {
+    if (!evidence) return;
+    hasAutoRetried.current = false;
+    setImageSrc(evidence.full_url);
+    setLoadState('loading');
   };
 
   const handleDownload = () => {
     if (!evidence) return;
 
     const link = document.createElement('a');
-    link.href = evidence.full_url;
+    link.href = imageSrc;
     link.download = `evidence-${evidence.id}.jpg`;
     link.target = '_blank';
     document.body.appendChild(link);
@@ -95,13 +149,6 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
     }
   };
 
-  // Reset load state when evidence changes
-  if (!open) {
-    if (loadState !== 'loading') {
-      setTimeout(() => setLoadState('loading'), 100);
-    }
-  }
-
   if (!evidence) return null;
 
   return (
@@ -121,14 +168,35 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
 
         {/* Image container */}
         <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden">
-          {/* Loading state */}
-          {loadState === 'loading' && (
+          {/* Loading / Refreshing state */}
+          {(loadState === 'loading' || loadState === 'refreshing') && (
             <div className="absolute inset-0">
               <Skeleton className="w-full h-full" />
             </div>
           )}
 
-          {/* Error state */}
+          {/* Permanent error state */}
+          {loadState === 'failed' && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground"
+              data-testid="preview-error"
+            >
+              <ImageOff className="h-12 w-12 mb-2" />
+              <span className="text-sm">Image unavailable</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={handleRetry}
+                data-testid="preview-retry-button"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Legacy error state (transient, before auto-retry completes) */}
           {loadState === 'error' && (
             <div
               className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground"
@@ -141,7 +209,7 @@ export function EvidencePreviewModal({ evidence, open, onClose }: EvidencePrevie
 
           {/* Actual image */}
           <img
-            src={evidence.full_url}
+            src={imageSrc}
             alt={`Evidence ${evidence.id}`}
             className={`w-full h-full object-contain ${
               loadState !== 'loaded' ? 'invisible absolute' : ''

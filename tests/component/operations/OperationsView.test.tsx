@@ -3,23 +3,32 @@
  * Feature: 057-live-ops-viewer (Phase 5)
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { OperationsView } from '@/presentation/components/operations/OperationsView';
 
+let sessionListShouldThrow = false;
+let cameraHealthShouldThrow = false;
+
 vi.mock('@/presentation/components/operations/SessionListView', () => ({
-  SessionListView: ({ onSessionSelect }: { onSessionSelect: (id: string) => void }) => (
-    <div data-testid="session-list-view">
-      <button data-testid="select-session" onClick={() => onSessionSelect('sess-test-123')}>
-        Select Session
-      </button>
-    </div>
-  ),
+  SessionListView: ({ onSessionSelect }: { onSessionSelect: (id: string) => void }) => {
+    if (sessionListShouldThrow) throw new Error('SessionListView render error');
+    return (
+      <div data-testid="session-list-view">
+        <button data-testid="select-session" onClick={() => onSessionSelect('sess-test-123')}>
+          Select Session
+        </button>
+      </div>
+    );
+  },
 }));
 
 vi.mock('@/presentation/components/operations/CameraHealthDashboard', () => ({
-  CameraHealthDashboard: () => <div data-testid="camera-health-dashboard">Camera Health</div>,
+  CameraHealthDashboard: () => {
+    if (cameraHealthShouldThrow) throw new Error('CameraHealthDashboard render error');
+    return <div data-testid="camera-health-dashboard">Camera Health</div>;
+  },
 }));
 
 vi.mock('@/presentation/components/operations/SessionDetailView', () => ({
@@ -32,6 +41,11 @@ vi.mock('@/presentation/components/operations/SessionDetailView', () => ({
 }));
 
 describe('OperationsView', () => {
+  beforeEach(() => {
+    sessionListShouldThrow = false;
+    cameraHealthShouldThrow = false;
+  });
+
   it('should show session list and camera health by default', () => {
     render(<OperationsView />);
 
@@ -73,5 +87,45 @@ describe('OperationsView', () => {
     expect(screen.getByTestId('session-list-view')).toBeInTheDocument();
     expect(screen.getByTestId('camera-health-dashboard')).toBeInTheDocument();
     expect(screen.queryByTestId('session-detail-view')).not.toBeInTheDocument();
+  });
+
+  // ==========================================================================
+  // Feature 058: Subsystem error isolation (T020)
+  // ==========================================================================
+
+  describe('subsystem error isolation (T020)', () => {
+    it('CameraHealthDashboard still renders when SessionListView throws', () => {
+      sessionListShouldThrow = true;
+      // Suppress console.error from the error boundary
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      render(<OperationsView />);
+
+      expect(screen.getByTestId('subsystem-error-sessions')).toBeInTheDocument();
+      expect(screen.getByTestId('camera-health-dashboard')).toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('SessionListView still renders when CameraHealthDashboard throws', () => {
+      cameraHealthShouldThrow = true;
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      render(<OperationsView />);
+
+      expect(screen.getByTestId('session-list-view')).toBeInTheDocument();
+      expect(screen.getByTestId('subsystem-error-camera-health')).toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('both subsystems render independently when neither throws', () => {
+      render(<OperationsView />);
+
+      expect(screen.getByTestId('session-list-view')).toBeInTheDocument();
+      expect(screen.getByTestId('camera-health-dashboard')).toBeInTheDocument();
+      expect(screen.queryByTestId('subsystem-error-sessions')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('subsystem-error-camera-health')).not.toBeInTheDocument();
+    });
   });
 });

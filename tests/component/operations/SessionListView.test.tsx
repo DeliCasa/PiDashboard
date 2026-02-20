@@ -9,6 +9,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '../../setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { SessionListView } from '@/presentation/components/operations/SessionListView';
+import { ApiError } from '@/infrastructure/api/client';
 import type { SessionWithStale } from '@/infrastructure/api/diagnostics-schemas';
 
 // Mock the hooks
@@ -155,6 +156,60 @@ describe('SessionListView', () => {
       await user.click(screen.getByRole('button', { name: /retry/i }));
 
       expect(mockRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should show graceful degradation UI on 404 error', () => {
+      (useSessions as ReturnType<typeof vi.fn>).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new ApiError(404, 'Not found'),
+        isFetching: false,
+        refetch: mockRefetch,
+      });
+
+      render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
+
+      expect(screen.getByTestId('session-list-unavailable')).toBeInTheDocument();
+      expect(
+        screen.getByText(/not available on this PiOrchestrator version/i)
+      ).toBeInTheDocument();
+      // Should NOT show the retry button for feature-unavailable errors
+      expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    });
+
+    it('should show graceful degradation UI on 503 error', () => {
+      (useSessions as ReturnType<typeof vi.fn>).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new ApiError(503, 'Service unavailable'),
+        isFetching: false,
+        refetch: mockRefetch,
+      });
+
+      render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
+
+      expect(screen.getByTestId('session-list-unavailable')).toBeInTheDocument();
+    });
+
+    it('should show actionable error with retry on 500 error', () => {
+      (useSessions as ReturnType<typeof vi.fn>).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new ApiError(500, 'Internal server error'),
+        isFetching: false,
+        refetch: mockRefetch,
+      });
+
+      render(<SessionListView onSessionSelect={mockOnSessionSelect} />);
+
+      expect(screen.getByTestId('session-list-error')).toBeInTheDocument();
+      expect(
+        screen.getByText(/unable to load sessions/i)
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     });
   });
 
