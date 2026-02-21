@@ -133,7 +133,7 @@ async function setupDiagnosticsMocks(page: import('@playwright/test').Page) {
   await mockEndpoint(page, '**/api/system/info', {
     data: mockSystemInfo,
   });
-  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
+  await mockEndpoint(page, '**/api/v1/sessions*', {
     data: mockSessions,
   });
   await mockEndpoint(page, '**/api/v1/sessions/*/evidence*', {
@@ -254,7 +254,7 @@ test.describe('Diagnostics Page', () => {
       error: true,
       errorMessage: 'Service unavailable',
     });
-    await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
+    await mockEndpoint(page, '**/api/v1/sessions*', {
       data: mockSessionsEmpty, // Empty sessions (graceful degradation)
     });
 

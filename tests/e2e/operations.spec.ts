@@ -105,10 +105,10 @@ const MOCK_SESSION_DELTA = {
  */
 async function setupSessionsMock(page: import('@playwright/test').Page) {
   // Remove the default empty sessions mock registered by applyDefaultMocks
-  await page.unroute('**/api/v1/diagnostics/sessions*');
+  await page.unroute('**/api/v1/sessions*');
 
   // Mock the sessions list endpoint with our test data
-  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
+  await mockEndpoint(page, '**/api/v1/sessions*', {
     data: MOCK_SESSIONS,
   });
 
@@ -116,7 +116,7 @@ async function setupSessionsMock(page: import('@playwright/test').Page) {
 
 /**
  * Set up session detail and evidence mocks.
- * In V1, getSession() filters from the list endpoint (/v1/diagnostics/sessions),
+ * In V1, getSession() filters from the list endpoint (/v1/sessions),
  * so no individual session detail mock is needed.
  */
 async function setupSessionDetailMock(page: import('@playwright/test').Page) {
@@ -251,8 +251,8 @@ test.describe('Operations Tab', () => {
   test('error state displays actionable message when sessions API returns 500', async ({ mockedPage }) => {
     await setupCameraDiagnosticsMock(mockedPage);
     // Override the default sessions mock with a 500 error
-    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/sessions*', {
       status: 500,
       error: true,
       errorMessage: 'Internal Server Error',

@@ -60,7 +60,7 @@ describe('useSessions Hook', () => {
   });
 
   it('should return empty array when sessions endpoint unavailable', async () => {
-    server.use(diagnosticsErrorHandlers.sessionsUnavailable);
+    server.use(...diagnosticsErrorHandlers.sessionsUnavailable);
 
     const queryClient = createTestQueryClient();
     const wrapper = createWrapper(queryClient);
