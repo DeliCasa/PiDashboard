@@ -30,7 +30,7 @@ export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor';
 /**
  * Session lifecycle status
  */
-export type SessionStatus = 'active' | 'completed' | 'cancelled';
+export type SessionStatus = 'active' | 'complete' | 'partial' | 'failed';
 
 // ============================================================================
 // Camera Health Interfaces

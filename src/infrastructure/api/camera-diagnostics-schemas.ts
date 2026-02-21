@@ -44,8 +44,9 @@ export type ConnectionQuality = z.infer<typeof ConnectionQualitySchema>;
  */
 export const SessionStatusSchema = z.enum([
   'active',
-  'completed',
-  'cancelled',
+  'complete',
+  'partial',
+  'failed',
 ]);
 
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;

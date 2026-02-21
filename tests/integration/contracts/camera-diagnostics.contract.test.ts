@@ -78,7 +78,7 @@ describe('Camera Diagnostics API Contracts', () => {
 
   describe('SessionStatusSchema', () => {
     it('validates all session statuses', () => {
-      const validStatuses = ['active', 'completed', 'cancelled'];
+      const validStatuses = ['active', 'complete', 'partial', 'failed'];
       for (const status of validStatuses) {
         const result = SessionStatusSchema.safeParse(status);
         expect(result.success, `Session status "${status}" should be valid`).toBe(true);
@@ -86,7 +86,7 @@ describe('Camera Diagnostics API Contracts', () => {
     });
 
     it('rejects invalid session statuses', () => {
-      const invalidStatuses = ['pending', 'failed', 'expired', ''];
+      const invalidStatuses = ['pending', 'completed', 'cancelled', 'expired', ''];
       for (const status of invalidStatuses) {
         const result = SessionStatusSchema.safeParse(status);
         expect(result.success, `Session status "${status}" should be invalid`).toBe(false);

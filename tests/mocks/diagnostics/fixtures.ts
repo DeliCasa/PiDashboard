@@ -175,17 +175,17 @@ export const mockSessionDetail: SessionDetail = {
 
 export const mockSessionDetailVariants = {
   active: mockSessionDetail,
-  completed: {
+  complete: {
     ...mockSessionDetail,
     id: 'sess-002',
-    status: 'completed' as const,
+    status: 'complete' as const,
     completed_at: '2026-02-03T12:30:00Z',
     capture_count: 10,
   },
-  cancelled: {
+  failed: {
     ...mockSessionDetail,
     id: 'sess-003',
-    status: 'cancelled' as const,
+    status: 'failed' as const,
     capture_count: 2,
   },
   empty: {
