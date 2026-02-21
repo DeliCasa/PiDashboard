@@ -693,7 +693,7 @@ export class MockAPI {
    */
   async mockSessions(config?: MockRouteConfig): Promise<void> {
     await this.page.route(
-      '**/api/v1/diagnostics/sessions*',
+      '**/api/v1/sessions*',
       createRouteHandler({
         data: mockSessionsData.withSessions,
         ...config,
@@ -1160,7 +1160,7 @@ export async function mockDiagnostics404(page: Page): Promise<void> {
  * Apply sessions success mock
  */
 export async function mockSessionsSuccess(page: Page): Promise<void> {
-  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
+  await mockEndpoint(page, '**/api/v1/sessions*', {
     data: mockSessionsData.withSessions,
   });
   await mockEndpoint(page, '**/api/v1/sessions/*/evidence*', {

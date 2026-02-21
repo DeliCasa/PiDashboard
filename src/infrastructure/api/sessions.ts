@@ -56,7 +56,14 @@ export const sessionsApi = {
    */
   listSessions: async (options: ListSessionsOptions = {}): Promise<SessionWithStale[]> => {
     try {
-      const response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
+      // Spec 084: Port 8082 read-only endpoint is /v1/sessions
+      // Falls back to /v1/diagnostics/sessions (port 8081) if first fails
+      let response: unknown;
+      try {
+        response = await apiClient.get<unknown>('/v1/sessions');
+      } catch {
+        response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
+      }
 
       const parsed = safeParseWithErrors(SessionListResponseSchema, response);
 
@@ -99,7 +106,12 @@ export const sessionsApi = {
    */
   getSession: async (sessionId: string): Promise<SessionWithStale | null> => {
     try {
-      const response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
+      let response: unknown;
+      try {
+        response = await apiClient.get<unknown>('/v1/sessions');
+      } catch {
+        response = await apiClient.get<unknown>('/v1/diagnostics/sessions');
+      }
 
       const parsed = safeParseWithErrors(SessionListResponseSchema, response);
 

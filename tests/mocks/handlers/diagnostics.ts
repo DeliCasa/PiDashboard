@@ -77,8 +77,8 @@ export function createDiagnosticsHandlers(overrides?: Partial<typeof diagnostics
       return HttpResponse.json(data.storageHealth);
     }),
 
-    // V1 Sessions list
-    http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
+    // V1 Sessions list (Spec 084: port 8082 uses /v1/sessions)
+    http.get(`${BASE_URL}/v1/sessions`, async () => {
       await delay(75);
 
       return HttpResponse.json({
@@ -197,21 +197,31 @@ export const diagnosticsErrorHandlers = {
     return HttpResponse.json(storageUnhealthyApiResponse);
   }),
 
-  sessionsUnavailable: http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
-    await delay(50);
-    return HttpResponse.json(
-      { error: 'Sessions endpoint not available' },
-      { status: 503 }
-    );
-  }),
+  // Both endpoints must return 503 since sessions.ts tries /v1/sessions first, falls back to /v1/diagnostics/sessions
+  sessionsUnavailable: [
+    http.get(`${BASE_URL}/v1/sessions`, async () => {
+      await delay(50);
+      return HttpResponse.json(
+        { error: 'Sessions endpoint not available' },
+        { status: 503 }
+      );
+    }),
+    http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
+      await delay(50);
+      return HttpResponse.json(
+        { error: 'Sessions endpoint not available' },
+        { status: 503 }
+      );
+    }),
+  ] as const,
 
-  sessionsEmpty: http.get(`${BASE_URL}/v1/diagnostics/sessions`, async () => {
+  sessionsEmpty: http.get(`${BASE_URL}/v1/sessions`, async () => {
     await delay(50);
     return HttpResponse.json(sessionListEmptyApiResponse);
   }),
 
   sessionNotFound: http.get(
-    `${BASE_URL}/v1/diagnostics/sessions`,
+    `${BASE_URL}/v1/sessions`,
     async () => {
       await delay(50);
       return HttpResponse.json({

@@ -57,7 +57,7 @@ describe('Sessions API Client', () => {
 
       const result = await sessionsApi.listSessions();
 
-      expect(apiClient.get).toHaveBeenCalledWith('/v1/diagnostics/sessions');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/sessions');
       expect(result).toHaveLength(allSessions.length);
       expect(result[0]).toHaveProperty('is_stale');
     });
@@ -68,7 +68,7 @@ describe('Sessions API Client', () => {
       const result = await sessionsApi.listSessions({ status: 'active' });
 
       // V1: no status param sent to API — always calls bare endpoint
-      expect(apiClient.get).toHaveBeenCalledWith('/v1/diagnostics/sessions');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/sessions');
 
       // Client-side filter: only active sessions returned
       result.forEach((session) => {
@@ -82,7 +82,7 @@ describe('Sessions API Client', () => {
       const result = await sessionsApi.listSessions({ limit: 2 });
 
       // V1: no limit param sent to API — always calls bare endpoint
-      expect(apiClient.get).toHaveBeenCalledWith('/v1/diagnostics/sessions');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/sessions');
 
       // Client-side limit applied
       expect(result.length).toBeLessThanOrEqual(2);
@@ -127,7 +127,10 @@ describe('Sessions API Client', () => {
 
     it('should throw on non-feature errors', async () => {
       const error = new Error('Network error');
-      vi.mocked(apiClient.get).mockRejectedValueOnce(error);
+      // Both endpoints must fail — first call tries /v1/sessions, fallback tries /v1/diagnostics/sessions
+      vi.mocked(apiClient.get)
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce(error);
 
       await expect(sessionsApi.listSessions()).rejects.toThrow('Network error');
     });
@@ -174,7 +177,7 @@ describe('Sessions API Client', () => {
       const result = await sessionsApi.getSession(activeSessionRecent.session_id);
 
       // V1: getSession calls the list endpoint (no dedicated detail endpoint)
-      expect(apiClient.get).toHaveBeenCalledWith('/v1/diagnostics/sessions');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/sessions');
       expect(result).toHaveProperty('is_stale');
       expect(result?.session_id).toBe(activeSessionRecent.session_id);
     });
@@ -207,7 +210,10 @@ describe('Sessions API Client', () => {
 
     it('should throw on non-feature errors', async () => {
       const error = new Error('Connection refused');
-      vi.mocked(apiClient.get).mockRejectedValueOnce(error);
+      // Both endpoints must fail — first call tries /v1/sessions, fallback tries /v1/diagnostics/sessions
+      vi.mocked(apiClient.get)
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce(error);
 
       await expect(sessionsApi.getSession('sess-12345')).rejects.toThrow('Connection refused');
     });

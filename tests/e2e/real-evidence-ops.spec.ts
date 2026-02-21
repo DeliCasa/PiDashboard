@@ -71,8 +71,8 @@ const MOCK_CAMERAS = [
 // ============================================================================
 
 async function setupFullMocks(page: import('@playwright/test').Page) {
-  await page.unroute('**/api/v1/diagnostics/sessions*');
-  await mockEndpoint(page, '**/api/v1/diagnostics/sessions*', {
+  await page.unroute('**/api/v1/sessions*');
+  await mockEndpoint(page, '**/api/v1/sessions*', {
     data: MOCK_SESSIONS,
   });
 
@@ -108,8 +108,8 @@ test.describe('Real Evidence Ops (058)', () => {
   });
 
   test('sessions API 404 shows graceful degradation', async ({ mockedPage }) => {
-    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/sessions*', {
       status: 404,
       error: true,
       errorMessage: 'Not Found',
@@ -128,8 +128,8 @@ test.describe('Real Evidence Ops (058)', () => {
 
   test('camera health loads independently of session errors', async ({ mockedPage }) => {
     // Sessions fail with 500
-    await mockedPage.unroute('**/api/v1/diagnostics/sessions*');
-    await mockEndpoint(mockedPage, '**/api/v1/diagnostics/sessions*', {
+    await mockedPage.unroute('**/api/v1/sessions*');
+    await mockEndpoint(mockedPage, '**/api/v1/sessions*', {
       status: 500,
       error: true,
       errorMessage: 'Internal Server Error',
