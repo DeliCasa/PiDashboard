@@ -11,6 +11,7 @@ import { SessionListView } from './SessionListView';
 import { CameraHealthDashboard } from './CameraHealthDashboard';
 import { SessionDetailView } from './SessionDetailView';
 import { SubsystemErrorBoundary } from '@/presentation/components/common/SubsystemErrorBoundary';
+import { IntegrationDiagnosticsPanel } from './IntegrationDiagnosticsPanel';
 
 export function OperationsView() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -25,17 +26,24 @@ export function OperationsView() {
   }
 
   return (
-    <div data-testid="operations-view" className="space-y-6 lg:grid lg:grid-cols-3 lg:gap-6 lg:space-y-0">
-      <div className="lg:col-span-2">
-        <SubsystemErrorBoundary subsystemName="Sessions">
-          <SessionListView onSessionSelect={setSelectedSessionId} />
-        </SubsystemErrorBoundary>
+    <div data-testid="operations-view" className="space-y-6">
+      <div className="lg:grid lg:grid-cols-3 lg:gap-6">
+        <div className="lg:col-span-2">
+          <SubsystemErrorBoundary subsystemName="Sessions">
+            <SessionListView onSessionSelect={setSelectedSessionId} />
+          </SubsystemErrorBoundary>
+        </div>
+        <div className="lg:col-span-1">
+          <SubsystemErrorBoundary subsystemName="Camera Health">
+            <CameraHealthDashboard />
+          </SubsystemErrorBoundary>
+        </div>
       </div>
-      <div className="lg:col-span-1">
-        <SubsystemErrorBoundary subsystemName="Camera Health">
-          <CameraHealthDashboard />
-        </SubsystemErrorBoundary>
-      </div>
+
+      {/* Integration Diagnostics — read-only, collapsible */}
+      <SubsystemErrorBoundary subsystemName="Integration Diagnostics">
+        <IntegrationDiagnosticsPanel />
+      </SubsystemErrorBoundary>
     </div>
   );
 }
