@@ -1,12 +1,11 @@
 /**
  * Camera Hooks Graceful Degradation Tests
  * Feature: 045-dashboard-resilience-e2e (T012)
+ * Updated: 062-piorch-grpc-client — hooks now use Connect RPC
  *
- * Tests that useCameras() stops retrying and polling when both V1 and
- * legacy camera endpoints return 404 or 503 (feature unavailable).
- *
- * Note: v1CamerasApi.list() falls back from /v1/cameras to /dashboard/cameras
- * on failure, so both endpoints must return errors for graceful degradation.
+ * Tests that useCameras() gracefully handles unavailable camera service.
+ * With RPC migration, the hook returns [] on unavailable errors and
+ * stops polling (no retry on feature-unavailable).
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
@@ -17,6 +16,8 @@ import { createWrapper, createTestQueryClient } from '../../setup/test-utils';
 import { useCameras } from '@/application/hooks/useCameras';
 import { createV1CamerasHandlers } from '../../mocks/v1-cameras-handlers';
 
+const RPC_BASE = '/rpc/delicasa.device.v1';
+
 // Setup MSW server with default success handlers
 const server = setupServer(...createV1CamerasHandlers());
 
@@ -25,22 +26,13 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe('useCameras Graceful Degradation (Feature 045)', () => {
-  it('should stop retrying on 404 (feature unavailable)', async () => {
-    let v1RequestCount = 0;
+  it('should return empty array on 503 (service unavailable)', async () => {
     server.use(
-      // V1 endpoint returns 404
-      http.get('/api/v1/cameras', () => {
-        v1RequestCount++;
+      // RPC endpoint returns Connect unavailable error
+      http.post(`${RPC_BASE}.CameraService/ListCameras`, () => {
         return HttpResponse.json(
-          { error: 'Not Found' },
-          { status: 404 }
-        );
-      }),
-      // Legacy fallback also returns 404
-      http.get('/api/dashboard/cameras', () => {
-        return HttpResponse.json(
-          { error: 'Not Found' },
-          { status: 404 }
+          { code: 'unavailable', message: 'Camera service unavailable' },
+          { status: 503 }
         );
       })
     );
@@ -50,36 +42,21 @@ describe('useCameras Graceful Degradation (Feature 045)', () => {
 
     const { result } = renderHook(() => useCameras(), { wrapper });
 
-    await waitFor(
-      () => {
-        expect(result.current.isError).toBe(true);
-      },
-      { timeout: 5000 }
-    );
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
 
-    // Wait a bit to ensure no more retries fire
-    await new Promise(r => setTimeout(r, 200));
-
-    // With isFeatureUnavailable, retries should be minimal (1-2 max)
-    expect(v1RequestCount).toBeLessThanOrEqual(2);
+    // camerasRpcApi.list() catches unavailable errors and returns []
+    expect(result.current.data).toEqual([]);
   });
 
-  it('should stop retrying on 503 (service unavailable)', async () => {
-    let v1RequestCount = 0;
+  it('should return empty array on 404 (feature unavailable)', async () => {
     server.use(
-      // V1 endpoint returns 503
-      http.get('/api/v1/cameras', () => {
-        v1RequestCount++;
+      // RPC endpoint returns Connect not-found error
+      http.post(`${RPC_BASE}.CameraService/ListCameras`, () => {
         return HttpResponse.json(
-          { error: 'Service Unavailable' },
-          { status: 503 }
-        );
-      }),
-      // Legacy fallback also returns 503
-      http.get('/api/dashboard/cameras', () => {
-        return HttpResponse.json(
-          { error: 'Service Unavailable' },
-          { status: 503 }
+          { code: 'not_found', message: 'Camera service not found' },
+          { status: 404 }
         );
       })
     );
@@ -89,18 +66,11 @@ describe('useCameras Graceful Degradation (Feature 045)', () => {
 
     const { result } = renderHook(() => useCameras(), { wrapper });
 
-    await waitFor(
-      () => {
-        expect(result.current.isError).toBe(true);
-      },
-      { timeout: 5000 }
-    );
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
 
-    // Wait a bit to ensure no more retries fire
-    await new Promise(r => setTimeout(r, 200));
-
-    // Should not retry excessively on 503
-    expect(v1RequestCount).toBeLessThanOrEqual(2);
+    expect(result.current.data).toEqual([]);
   });
 
   it('should fetch cameras successfully with default handler', async () => {

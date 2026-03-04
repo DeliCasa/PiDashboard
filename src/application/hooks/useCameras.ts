@@ -8,6 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { camerasRpcApi } from '@/infrastructure/api/cameras-rpc';
 import { v1CamerasApi } from '@/infrastructure/api/v1-cameras';
 import { queryKeys } from '@/lib/queryClient';
 import { useVisibilityAwareInterval } from './useDocumentVisibility';
@@ -34,7 +35,7 @@ export function useCameras(enabled = true, pollingInterval = CAMERA_POLLING_INTE
 
   return useQuery({
     queryKey: queryKeys.cameraList(),
-    queryFn: v1CamerasApi.list,
+    queryFn: camerasRpcApi.list,
     enabled,
     refetchInterval: (query) => {
       if (query.state.error && isFeatureUnavailable(query.state.error)) {
@@ -75,7 +76,7 @@ export function useCaptureTest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (cameraId: string) => v1CamerasApi.capture(cameraId),
+    mutationFn: (cameraId: string) => camerasRpcApi.capture(cameraId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cameraList() });
     },

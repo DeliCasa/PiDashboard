@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { sessionsApi } from '@/infrastructure/api/sessions';
+import { sessionsRpcApi } from '@/infrastructure/api/sessions-rpc';
 import { queryKeys } from '@/lib/queryClient';
 import type { SessionStatus } from '@/infrastructure/api/diagnostics-schemas';
 
@@ -40,7 +40,7 @@ export function useSessions(options: UseSessionsOptions = {}) {
 
   return useQuery({
     queryKey: queryKeys.diagnosticsSessions({ status }),
-    queryFn: () => sessionsApi.listSessions({ status, limit }),
+    queryFn: () => sessionsRpcApi.listSessions({ status, limit }),
     enabled,
     refetchInterval: pollingInterval,
     // Keep previous data while refetching for smooth UX
@@ -58,7 +58,7 @@ export function useSessions(options: UseSessionsOptions = {}) {
 export function useSession(sessionId: string | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.diagnosticsSessionById(sessionId || ''),
-    queryFn: () => (sessionId ? sessionsApi.getSession(sessionId) : null),
+    queryFn: () => (sessionId ? sessionsRpcApi.getSession(sessionId) : null),
     enabled: enabled && !!sessionId,
     refetchInterval: SESSIONS_POLLING_INTERVAL,
     placeholderData: (previousData) => previousData,

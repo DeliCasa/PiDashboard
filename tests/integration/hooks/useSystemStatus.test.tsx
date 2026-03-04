@@ -66,14 +66,15 @@ describe('Partial API Failures (T049)', () => {
     const { QueryClient } = await import('@tanstack/react-query');
     let requestCount = 0;
 
-    // Fail first 2 requests, then succeed (V1 envelope format)
+    // Fail first 2 requests with 502 (transient), then succeed
+    // Note: 503/404 are treated as "feature unavailable" and don't retry
     server.use(
       http.get('/api/v1/system/info', async () => {
         requestCount++;
         if (requestCount < 3) {
           return HttpResponse.json(
             { success: false, error: { code: 'TEMPORARY_ERROR', message: 'Temporary error' }, correlation_id: 'corr-err', timestamp: new Date().toISOString() },
-            { status: 503 }
+            { status: 502 }
           );
         }
         return HttpResponse.json({

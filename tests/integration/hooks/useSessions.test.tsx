@@ -76,7 +76,7 @@ describe('useSessions Hook', () => {
   });
 
   it('should return empty array when no sessions', async () => {
-    server.use(diagnosticsErrorHandlers.sessionsEmpty);
+    server.use(...diagnosticsErrorHandlers.sessionsEmpty);
 
     const queryClient = createTestQueryClient();
     const wrapper = createWrapper(queryClient);
@@ -175,7 +175,7 @@ describe('useSession Hook', () => {
   });
 
   it('should return null for non-existent session', async () => {
-    server.use(diagnosticsErrorHandlers.sessionNotFound);
+    server.use(...diagnosticsErrorHandlers.sessionNotFound);
 
     const queryClient = createTestQueryClient();
     const wrapper = createWrapper(queryClient);

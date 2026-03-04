@@ -21,6 +21,11 @@ import {
   captureAfterClose,
   captureS3Only,
 } from '../diagnostics/session-fixtures';
+import {
+  createRpcSessionHandlers,
+  createRpcEvidenceHandlers,
+  rpcErrorHandlers,
+} from './rpc';
 import type { CaptureEntry, Session } from '@/infrastructure/api/diagnostics-schemas';
 
 const BASE_URL = '/api';
@@ -157,6 +162,10 @@ export function createDiagnosticsHandlers(overrides?: Partial<typeof diagnostics
         });
       }
     ),
+
+    // Connect RPC handlers (Feature 062: hooks now use RPC instead of REST)
+    ...createRpcSessionHandlers(data.sessions),
+    ...createRpcEvidenceHandlers(data.captures, data.sessions),
   ];
 }
 
@@ -198,6 +207,7 @@ export const diagnosticsErrorHandlers = {
   }),
 
   // Both endpoints must return 503 since sessions.ts tries /v1/sessions first, falls back to /v1/diagnostics/sessions
+  // Also includes RPC handlers (Feature 062: hooks now use RPC)
   sessionsUnavailable: [
     http.get(`${BASE_URL}/v1/sessions`, async () => {
       await delay(50);
@@ -213,36 +223,46 @@ export const diagnosticsErrorHandlers = {
         { status: 503 }
       );
     }),
+    ...rpcErrorHandlers.sessionsUnavailable,
   ] as const,
 
-  sessionsEmpty: http.get(`${BASE_URL}/v1/sessions`, async () => {
-    await delay(50);
-    return HttpResponse.json(sessionListEmptyApiResponse);
-  }),
-
-  sessionNotFound: http.get(
-    `${BASE_URL}/v1/sessions`,
-    async () => {
+  sessionsEmpty: [
+    http.get(`${BASE_URL}/v1/sessions`, async () => {
       await delay(50);
-      return HttpResponse.json({
-        success: true,
-        data: {
-          sessions: [] as Session[],
-          total: 0,
-          queried_at: new Date().toISOString(),
-        },
-        timestamp: new Date().toISOString(),
-      });
-    }
-  ),
+      return HttpResponse.json(sessionListEmptyApiResponse);
+    }),
+    ...rpcErrorHandlers.sessionsEmpty,
+  ],
 
-  evidenceEmpty: http.get(
-    `${BASE_URL}/v1/sessions/:sessionId/evidence`,
-    async () => {
-      await delay(50);
-      return HttpResponse.json(evidenceListEmptyApiResponse);
-    }
-  ),
+  sessionNotFound: [
+    http.get(
+      `${BASE_URL}/v1/sessions`,
+      async () => {
+        await delay(50);
+        return HttpResponse.json({
+          success: true,
+          data: {
+            sessions: [] as Session[],
+            total: 0,
+            queried_at: new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    ),
+    ...rpcErrorHandlers.sessionNotFound,
+  ],
+
+  evidenceEmpty: [
+    http.get(
+      `${BASE_URL}/v1/sessions/:sessionId/evidence`,
+      async () => {
+        await delay(50);
+        return HttpResponse.json(evidenceListEmptyApiResponse);
+      }
+    ),
+    ...rpcErrorHandlers.evidenceEmpty,
+  ],
 
   networkError: http.get(`${BASE_URL}/v1/diagnostics/*`, async () => {
     await delay(100);

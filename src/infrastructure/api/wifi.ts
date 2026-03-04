@@ -77,12 +77,12 @@ export function transformNetwork(network: WiFiNetworkApiResponse): WiFiNetwork {
 }
 
 /**
- * Check if error indicates endpoint is unavailable (404 or 503)
+ * Check if error indicates endpoint is unavailable (404, 500, or 503)
+ * 500 included because wifi/scan returns 500 "not available" on some builds.
  */
 function isEndpointUnavailable(error: unknown): boolean {
   if (!ApiError.isApiError(error)) return false;
-  // 404 = Not Found, 503 = Service Unavailable (nginx proxy can't reach backend route)
-  return error.status === 404 || error.status === 503;
+  return error.status === 404 || error.status === 500 || error.status === 503;
 }
 
 /**
@@ -97,7 +97,7 @@ export const wifiApi = {
    */
   scan: async (): Promise<{ networks: WiFiNetwork[] }> => {
     try {
-      const response = await apiClient.get<WiFiScanApiResponse>('/wifi/scan');
+      const response = await apiClient.get<WiFiScanApiResponse>('/wifi/scan', { retries: 1 });
 
       // Validate API response against schema
       const validation = safeParseWithErrors(WifiScanResponseSchema, response);
@@ -147,7 +147,7 @@ export const wifiApi = {
    */
   getStatus: async (): Promise<{ status: WiFiStatus }> => {
     try {
-      const response = await apiClient.get<{ status: WiFiStatus }>('/wifi/status');
+      const response = await apiClient.get<{ status: WiFiStatus }>('/wifi/status', { retries: 1 });
 
       // Validate API response against schema
       const validation = safeParseWithErrors(WifiStatusResponseSchema, response);

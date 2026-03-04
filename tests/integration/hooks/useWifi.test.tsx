@@ -198,8 +198,11 @@ describe('WiFi Partial API Failures (T050)', () => {
       { timeout: 10000 }
     );
 
-    // Stale data should be preserved
-    expect(result.current.data?.connected).toBe(true);
+    // 500 is now treated as "endpoint unavailable" — API returns default
+    // (disconnected status) instead of throwing, so query stays successful
+    expect(result.current.isSuccess).toBe(true);
+    // Data reflects the graceful degradation default (disconnected)
+    expect(result.current.data?.client_status).toBe('disconnected');
   });
 
   it('should maintain cached networks during scan failure', async () => {

@@ -6,6 +6,7 @@
  */
 
 import { http, HttpResponse, delay } from 'msw';
+import { createRpcCameraHandlers } from './handlers/rpc';
 import type {
   Camera,
   CameraDiagnostics,
@@ -288,6 +289,11 @@ export function createV1CamerasHandlers(overrides?: Partial<CameraMockState>) {
         message: 'Reboot command sent successfully',
       });
     }),
+
+    // ==========================================================================
+    // Connect RPC handlers (Feature 062: hooks now use RPC)
+    // ==========================================================================
+    ...createRpcCameraHandlers(state.cameras),
   ];
 }
 
