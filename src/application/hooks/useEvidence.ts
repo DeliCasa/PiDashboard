@@ -7,6 +7,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { evidenceRpcApi } from '@/infrastructure/api/evidence-rpc';
 import { evidenceApi } from '@/infrastructure/api/evidence';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -38,7 +39,7 @@ export function useSessionEvidence(
 
   return useQuery({
     queryKey: queryKeys.diagnosticsEvidence(sessionId || ''),
-    queryFn: () => (sessionId ? evidenceApi.listSessionEvidence(sessionId) : []),
+    queryFn: () => (sessionId ? evidenceRpcApi.listSessionEvidence(sessionId) : []),
     enabled: enabled && !!sessionId,
     refetchInterval: pollingInterval,
     placeholderData: (previousData) => previousData,
@@ -63,7 +64,7 @@ export function useEvidencePair(
 
   return useQuery({
     queryKey: [...queryKeys.diagnosticsEvidence(sessionId || ''), 'pair'],
-    queryFn: () => (sessionId ? evidenceApi.getEvidencePair(sessionId) : null),
+    queryFn: () => (sessionId ? evidenceRpcApi.getEvidencePair(sessionId) : null),
     enabled: enabled && !!sessionId,
     refetchInterval: pollingInterval,
     placeholderData: (previousData) => previousData,

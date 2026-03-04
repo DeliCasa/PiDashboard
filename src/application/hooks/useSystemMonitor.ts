@@ -17,6 +17,7 @@ import type {
 } from '@/domain/types/websocket';
 import { systemApi } from '@/infrastructure/api/system';
 import { queryKeys } from '@/lib/queryClient';
+import { isFeatureUnavailable } from '@/infrastructure/api/client';
 
 // ============================================================================
 // Constants
@@ -261,7 +262,17 @@ export function useSystemMonitor(options: UseSystemMonitorOptions = {}): UseSyst
       return data;
     },
     enabled: pollingEnabled,
-    refetchInterval: pollingEnabled ? pollingInterval : false,
+    refetchInterval: (query) => {
+      if (!pollingEnabled) return false;
+      if (query.state.error && isFeatureUnavailable(query.state.error)) {
+        return false;
+      }
+      return pollingInterval;
+    },
+    retry: (failureCount, error) => {
+      if (isFeatureUnavailable(error)) return false;
+      return failureCount < 2;
+    },
     placeholderData: (prev) => prev,
   });
 

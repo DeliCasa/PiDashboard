@@ -16,7 +16,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://192.168.1.124:8082",
+        target: `http://${process.env.VITE_PI_HOST || "192.168.1.124"}:8082`,
+        changeOrigin: true,
+      },
+      "/rpc": {
+        target: `http://${process.env.VITE_PI_HOST || "192.168.1.124"}:8081`,
         changeOrigin: true,
       },
     },

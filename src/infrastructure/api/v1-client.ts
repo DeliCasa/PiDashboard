@@ -181,13 +181,16 @@ export async function v1Request<T>(
     // Translate ApiError to V1ApiError
     if (error instanceof Error && 'status' in error) {
       const apiError = error as ApiError;
-      throw new V1ApiError(
+      const v1Error = new V1ApiError(
         apiError.code || 'NETWORK_ERROR',
         apiError.message,
         apiError.status >= 500, // 5xx are retryable
         undefined,
         undefined
       );
+      // Preserve HTTP status for isFeatureUnavailable() detection
+      (v1Error as V1ApiError & { httpStatus: number }).httpStatus = apiError.status;
+      throw v1Error;
     }
 
     // Translate other errors

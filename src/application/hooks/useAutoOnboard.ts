@@ -16,6 +16,7 @@ import type {
   CleanupOptions,
 } from '@/infrastructure/api/v1-auto-onboard';
 import { queryKeys } from '@/lib/queryClient';
+import { isFeatureUnavailable } from '@/infrastructure/api/client';
 import { useVisibilityAwareInterval } from './useDocumentVisibility';
 
 // ============================================================================
@@ -51,10 +52,18 @@ export function useAutoOnboardStatus(
     queryKey: queryKeys.autoOnboardStatus(),
     queryFn: autoOnboardApi.getStatus,
     enabled,
-    refetchInterval,
+    refetchInterval: (query) => {
+      // Stop polling if endpoint is unavailable (404/503)
+      if (query.state.error && isFeatureUnavailable(query.state.error)) {
+        return false;
+      }
+      return refetchInterval;
+    },
     placeholderData: (previousData) => previousData,
-    // Don't show error immediately - auto-onboard might not be available
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (isFeatureUnavailable(error)) return false;
+      return failureCount < 1;
+    },
   });
 }
 

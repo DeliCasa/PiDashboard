@@ -61,11 +61,14 @@ function parseErrorResponse(error: unknown, defaultCode: string): V1ApiError {
   // Handle ApiError with status code
   if (error instanceof Error && 'status' in error) {
     const apiError = error as Error & { status: number; code?: string };
-    return new V1ApiError(
+    const v1Error = new V1ApiError(
       apiError.code || defaultCode,
       apiError.message,
       apiError.status >= 500
     );
+    // Preserve HTTP status for isFeatureUnavailable() detection
+    (v1Error as V1ApiError & { httpStatus: number }).httpStatus = apiError.status;
+    return v1Error;
   }
 
   // Fallback for unknown errors

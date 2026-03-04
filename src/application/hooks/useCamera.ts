@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { v1CamerasApi } from '@/infrastructure/api/v1-cameras';
+import { camerasRpcApi } from '@/infrastructure/api/cameras-rpc';
 import { queryKeys } from '@/lib/queryClient';
 
 /** Default stale time for camera details (30 seconds) */
@@ -21,7 +21,7 @@ const CAMERA_STALE_TIME = 30_000;
 export function useCamera(cameraId: string | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.cameraById(cameraId ?? ''),
-    queryFn: () => v1CamerasApi.getById(cameraId!),
+    queryFn: () => camerasRpcApi.getById(cameraId!),
     enabled: enabled && !!cameraId,
     staleTime: CAMERA_STALE_TIME,
     retry: (failureCount, error) => {

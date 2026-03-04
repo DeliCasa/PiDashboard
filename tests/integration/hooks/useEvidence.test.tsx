@@ -69,7 +69,7 @@ describe('useSessionEvidence Hook', () => {
   });
 
   it('should return empty array when no evidence', async () => {
-    server.use(diagnosticsErrorHandlers.evidenceEmpty);
+    server.use(...diagnosticsErrorHandlers.evidenceEmpty);
 
     const queryClient = createTestQueryClient();
     const wrapper = createWrapper(queryClient);
