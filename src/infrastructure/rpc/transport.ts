@@ -39,8 +39,13 @@ const correlationInterceptor: Interceptor = (next) => async (req) => {
 export const transport = createConnectTransport({
   baseUrl: RPC_BASE_URL,
   useBinaryFormat: false,
-  // Custom fetch wrapper: strips AbortSignal to avoid jsdom incompatibility in tests.
-  // Also late-binds to globalThis.fetch so MSW interception works.
+  // CANONICAL fetch wrapper (Feature 062/063): two intentional behaviors:
+  // 1. Strips AbortSignal — jsdom's AbortSignal is incompatible with fetch spec,
+  //    causing Connect RPC requests to fail in Vitest. Removing signal is safe
+  //    because PiDashboard requests are short-lived (no manual abort needed).
+  // 2. Late-binds to globalThis.fetch — MSW patches globalThis.fetch at runtime,
+  //    so we must NOT capture fetch at module load time.
+  // Do NOT add global fetch/signal patches in test setup files; this is the sole fix.
   fetch: (input, init) => {
     if (init?.signal) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

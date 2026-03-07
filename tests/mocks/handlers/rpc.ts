@@ -1,19 +1,26 @@
 /**
  * MSW Handlers for Connect RPC Endpoints
- * Feature: 062-piorch-grpc-client
+ * Feature: 062-piorch-grpc-client, 063-wire-vnext-integration
  *
  * Intercepts Connect protocol POST requests for session, evidence, and camera RPCs.
- * Returns proto3 JSON format (camelCase fields, string enums, ISO timestamps).
+ * Uses @delicasa/wire/testing factory functions to produce canonical proto3 JSON.
  */
 
 import { http, HttpResponse, delay } from 'msw';
+import {
+  makeOperationSession,
+  makeEvidenceCapture,
+  makeEvidencePair,
+  makeCamera,
+  makeCameraHealth,
+} from '@delicasa/wire/testing';
 import type { Session, CaptureEntry } from '@/infrastructure/api/diagnostics-schemas';
 import type { Camera } from '@/infrastructure/api/v1-cameras-schemas';
 
 const RPC_BASE = '/rpc/delicasa.device.v1';
 
 // ============================================================================
-// Proto JSON Conversion Helpers
+// Domain → Proto Enum Maps
 // ============================================================================
 
 const SESSION_STATUS_TO_PROTO: Record<string, string> = {
@@ -47,8 +54,12 @@ const CAMERA_STATUS_TO_PROTO: Record<string, string> = {
   connecting: 'CAMERA_STATUS_CONNECTING',
 };
 
+// ============================================================================
+// Domain → Wire Factory Adapters
+// ============================================================================
+
 function sessionToProto(session: Session) {
-  return {
+  return makeOperationSession({
     sessionId: session.session_id,
     containerId: session.container_id,
     startedAt: session.started_at,
@@ -60,11 +71,11 @@ function sessionToProto(session: Session) {
     hasAfterClose: session.has_after_close,
     pairComplete: session.pair_complete,
     elapsedSeconds: session.elapsed_seconds,
-  };
+  });
 }
 
 function captureToProto(capture: CaptureEntry) {
-  return {
+  return makeEvidenceCapture({
     evidenceId: capture.evidence_id,
     captureTag: CAPTURE_TAG_TO_PROTO[capture.capture_tag] || 'CAPTURE_TAG_UNSPECIFIED',
     status: CAPTURE_STATUS_TO_PROTO[capture.status] || 'CAPTURE_STATUS_UNSPECIFIED',
@@ -72,22 +83,21 @@ function captureToProto(capture: CaptureEntry) {
     containerId: capture.container_id,
     sessionId: capture.session_id,
     capturedAt: capture.created_at,
-    contentType: capture.content_type || '',
+    contentType: capture.content_type || 'image/jpeg',
     imageSizeBytes: capture.image_size_bytes ? String(capture.image_size_bytes) : '0',
     objectKey: capture.object_key || '',
     uploadStatus: capture.upload_status || '',
-  };
+  });
 }
 
 function cameraToProto(camera: Camera) {
-  return {
+  return makeCamera({
     deviceId: camera.id,
     name: camera.name,
     status: CAMERA_STATUS_TO_PROTO[camera.status] || 'CAMERA_STATUS_UNSPECIFIED',
-    // Omit Timestamp fields when empty — proto3 JSON rejects empty strings
-    ...(camera.lastSeen ? { lastSeen: camera.lastSeen } : {}),
+    ...(camera.lastSeen ? { lastSeen: camera.lastSeen } : { lastSeen: undefined }),
     health: camera.health
-      ? {
+      ? makeCameraHealth({
           wifiRssi: camera.health.wifi_rssi,
           freeHeap: camera.health.free_heap ? String(camera.health.free_heap) : '0',
           uptimeSeconds: camera.health.uptime_seconds
@@ -95,13 +105,14 @@ function cameraToProto(camera: Camera) {
             : '0',
           firmwareVersion: camera.health.firmware_version || '',
           resolution: camera.health.resolution || '',
-          // Omit Timestamp fields when empty — proto3 JSON rejects empty strings
-          ...(camera.health.last_capture ? { lastCapture: camera.health.last_capture } : {}),
-        }
+          ...(camera.health.last_capture
+            ? { lastCapture: camera.health.last_capture }
+            : { lastCapture: undefined }),
+        })
       : undefined,
     ipAddress: camera.ip_address || '',
     macAddress: camera.mac_address || '',
-  };
+  });
 }
 
 // ============================================================================
@@ -181,14 +192,14 @@ export function createRpcEvidenceHandlers(
         );
 
         return HttpResponse.json({
-          pair: {
+          pair: makeEvidencePair({
             sessionId: body.sessionId,
             containerId: session?.container_id || '',
             pairStatus,
             before: before ? captureToProto(before) : undefined,
             after: after ? captureToProto(after) : undefined,
             queriedAt: new Date().toISOString(),
-          },
+          }),
         });
       }
     ),
