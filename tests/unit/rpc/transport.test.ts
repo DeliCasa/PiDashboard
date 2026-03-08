@@ -1,18 +1,23 @@
 /**
  * Transport Fetch Wrapper Unit Tests
- * Feature: 063-wire-vnext-integration (US3)
+ * Feature: 063-wire-vnext-integration (US3), 064-post-deploy-validation (US2)
  *
  * Tests the custom fetch wrapper in the Connect transport configuration:
  * 1. Strips AbortSignal from fetch init (jsdom compatibility)
  * 2. Passes init through unmodified when no signal present
  * 3. Late-binds to globalThis.fetch (MSW interception compatibility)
+ * 4. Verifies JSON format configuration (useBinaryFormat: false)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-// We test the fetch wrapper behavior by extracting the logic from transport.ts.
-// The transport module's fetch option is: (input, init) => { strip signal, call globalThis.fetch }
-// We replicate and test this exact logic since it's an inline function.
+// The fetch wrapper is an inline closure inside createConnectTransport() in
+// src/infrastructure/rpc/transport.ts. It cannot be extracted as a named export
+// without restructuring the production code (the closure is passed directly as
+// the `fetch` option). We replicate the exact logic here for unit testing.
+// If the source implementation changes, this replica must be updated to match.
 
 /** Replicates the fetch wrapper from src/infrastructure/rpc/transport.ts */
 function transportFetch(
@@ -104,5 +109,21 @@ describe('Transport fetch wrapper', () => {
     expect(mockFetch).toHaveBeenCalledOnce();
     const [, calledInit] = mockFetch.mock.calls[0];
     expect(calledInit).toBeUndefined();
+  });
+});
+
+describe('Transport configuration', () => {
+  // The transport is created at module load time with createConnectTransport(),
+  // making it difficult to mock and inspect the config object directly.
+  // Instead we verify the source code contains the expected configuration.
+  // This catches regressions if someone changes useBinaryFormat to true.
+  it('uses JSON format (useBinaryFormat: false), not gRPC binary', () => {
+    const transportSource = readFileSync(
+      resolve(__dirname, '../../../src/infrastructure/rpc/transport.ts'),
+      'utf-8',
+    );
+
+    expect(transportSource).toContain('useBinaryFormat: false');
+    expect(transportSource).not.toContain('useBinaryFormat: true');
   });
 });
