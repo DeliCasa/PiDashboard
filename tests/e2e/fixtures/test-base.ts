@@ -7,6 +7,7 @@
 
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, Page } from '@playwright/test';
+import { applyDefaultRpcMocks } from './rpc-mocks';
 
 /**
  * Custom fixture types for PiDashboard tests
@@ -472,6 +473,15 @@ async function applyDefaultMocks(page: Page): Promise<void> {
       body: JSON.stringify({}),
     });
   });
+  // Camera diagnostics returns an array (listCameraDiagnostics expects CameraDiagnostics[]).
+  // Registered AFTER the wildcard so it takes precedence (Playwright LIFO matching).
+  await page.route('**/api/dashboard/cameras/diagnostics', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
 
   // Mock V1 Cameras API (Feature: 045-dashboard-resilience-e2e)
   await page.route('**/api/v1/cameras', async (route) => {
@@ -616,6 +626,11 @@ async function applyDefaultMocks(page: Page): Promise<void> {
       }),
     });
   });
+
+  // Connect RPC default mocks (Feature: 064-post-deploy-validation)
+  // Provides empty/404 defaults for all RPC endpoints so tests using
+  // mockedPage fixture get baseline RPC coverage.
+  await applyDefaultRpcMocks(page);
 }
 
 /**

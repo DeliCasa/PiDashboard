@@ -1,6 +1,7 @@
 /**
  * Operations E2E Tests
  * Feature: 057-live-ops-viewer (T019)
+ * Updated: 064-post-deploy-validation — migrated from REST to RPC mocks
  *
  * Smoke tests for the Operations tab including session list,
  * session drill-down, camera health, and error states.
@@ -8,60 +9,20 @@
 
 import { test, expect } from './fixtures/test-base';
 import { mockEndpoint, mockEvidenceData } from './fixtures/mock-routes';
+import {
+  mockRpcEndpoint,
+  mockRpcError,
+  unrouteRpc,
+  makeListSessionsResponse,
+  makeGetSessionResponse,
+  makeGetSessionEvidenceResponse,
+  makeOperationSession,
+  makeEvidenceCapture,
+} from './fixtures/rpc-mocks';
 
 // ============================================================================
-// Mock Data
+// Mock Data (inventory delta — still REST)
 // ============================================================================
-
-const MOCK_SESSIONS = {
-  success: true,
-  data: {
-    sessions: [
-      {
-        session_id: 'sess-op-001',
-        container_id: 'ctr-op-001',
-        started_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-        status: 'active',
-        total_captures: 4,
-        successful_captures: 3,
-        failed_captures: 1,
-        has_before_open: true,
-        has_after_close: false,
-        pair_complete: false,
-        elapsed_seconds: 900,
-      },
-      {
-        session_id: 'sess-op-002',
-        container_id: 'ctr-op-002',
-        started_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-        status: 'complete',
-        total_captures: 8,
-        successful_captures: 8,
-        failed_captures: 0,
-        has_before_open: true,
-        has_after_close: true,
-        pair_complete: true,
-        elapsed_seconds: 2700,
-      },
-      {
-        session_id: 'sess-op-003',
-        container_id: 'ctr-op-003',
-        started_at: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
-        status: 'failed',
-        total_captures: 1,
-        successful_captures: 1,
-        failed_captures: 0,
-        has_before_open: true,
-        has_after_close: false,
-        pair_complete: false,
-        elapsed_seconds: 5400,
-      },
-    ],
-    total: 3,
-    queried_at: new Date().toISOString(),
-  },
-  timestamp: new Date().toISOString(),
-};
 
 const MOCK_SESSION_DELTA = {
   success: true,
@@ -100,49 +61,101 @@ const MOCK_SESSION_DELTA = {
 // ============================================================================
 
 /**
- * Override the default empty sessions mock with test data,
- * and ensure camera diagnostics returns an empty array (not an object).
+ * Override the default empty sessions RPC mock with test data.
  */
 async function setupSessionsMock(page: import('@playwright/test').Page) {
-  // Remove the default empty sessions mock registered by applyDefaultMocks
-  await page.unroute('**/api/v1/sessions*');
-
-  // Mock the sessions list endpoint with our test data
-  await mockEndpoint(page, '**/api/v1/sessions*', {
-    data: MOCK_SESSIONS,
-  });
-
+  await unrouteRpc(page, 'SessionService', 'ListSessions');
+  await mockRpcEndpoint(page, 'SessionService', 'ListSessions',
+    makeListSessionsResponse, {
+      sessions: [
+        makeOperationSession({
+          sessionId: 'sess-op-001',
+          containerId: 'ctr-op-001',
+          status: 'SESSION_STATUS_ACTIVE',
+          totalCaptures: 4,
+          successfulCaptures: 3,
+          failedCaptures: 1,
+          hasBeforeOpen: true,
+          hasAfterClose: false,
+          pairComplete: false,
+          elapsedSeconds: 900,
+        }),
+        makeOperationSession({
+          sessionId: 'sess-op-002',
+          containerId: 'ctr-op-002',
+          status: 'SESSION_STATUS_COMPLETE',
+          totalCaptures: 8,
+          successfulCaptures: 8,
+          failedCaptures: 0,
+          hasBeforeOpen: true,
+          hasAfterClose: true,
+          pairComplete: true,
+          elapsedSeconds: 2700,
+        }),
+        makeOperationSession({
+          sessionId: 'sess-op-003',
+          containerId: 'ctr-op-003',
+          status: 'SESSION_STATUS_FAILED',
+          totalCaptures: 1,
+          successfulCaptures: 1,
+          failedCaptures: 0,
+          hasBeforeOpen: true,
+          hasAfterClose: false,
+          pairComplete: false,
+          elapsedSeconds: 5400,
+        }),
+      ],
+      totalCount: 3,
+    });
 }
 
 /**
  * Set up session detail and evidence mocks.
- * In V1, getSession() filters from the list endpoint (/v1/sessions),
- * so no individual session detail mock is needed.
  */
 async function setupSessionDetailMock(page: import('@playwright/test').Page) {
-  // The sessions list mock already includes sess-op-001 via setupSessionsMock().
+  // GetSession RPC mock
+  await unrouteRpc(page, 'SessionService', 'GetSession');
+  await mockRpcEndpoint(page, 'SessionService', 'GetSession',
+    makeGetSessionResponse, {
+      session: makeOperationSession({
+        sessionId: 'sess-op-001',
+        containerId: 'ctr-op-001',
+        status: 'SESSION_STATUS_ACTIVE',
+        totalCaptures: 4,
+        successfulCaptures: 3,
+        failedCaptures: 1,
+      }),
+    });
 
-  // Mock session delta endpoint
+  // GetSessionEvidence RPC mock
+  await unrouteRpc(page, 'EvidenceService', 'GetSessionEvidence');
+  await mockRpcEndpoint(page, 'EvidenceService', 'GetSessionEvidence',
+    makeGetSessionEvidenceResponse, {
+      sessionId: 'sess-op-001',
+      containerId: 'ctr-op-001',
+      captures: [
+        makeEvidenceCapture({
+          evidenceId: 'ev-op-before',
+          captureTag: 'CAPTURE_TAG_BEFORE_OPEN',
+          sessionId: 'sess-op-001',
+        }),
+        makeEvidenceCapture({
+          evidenceId: 'ev-op-after',
+          captureTag: 'CAPTURE_TAG_AFTER_CLOSE',
+          sessionId: 'sess-op-001',
+        }),
+      ],
+    });
+
+  // Mock session delta endpoint (still REST)
   await page.unroute('**/api/v1/sessions/*/inventory-delta');
   await mockEndpoint(page, '**/api/v1/sessions/*/inventory-delta', {
     data: MOCK_SESSION_DELTA,
   });
 
-  // Mock evidence endpoint (V1)
+  // Mock evidence endpoint (V1 REST — used by some legacy components)
   await mockEndpoint(page, '**/api/v1/sessions/*/evidence*', {
     data: mockEvidenceData.withEvidence,
-  });
-}
-
-/**
- * Ensure the camera diagnostics endpoint returns a valid array.
- * The default mock at /api/dashboard/cameras/* returns {} (object),
- * but listCameraDiagnostics() expects CameraDiagnostics[] (array).
- */
-async function setupCameraDiagnosticsMock(page: import('@playwright/test').Page) {
-  await page.unroute('**/api/dashboard/cameras/*');
-  await mockEndpoint(page, '**/api/dashboard/cameras/diagnostics', {
-    data: [],
   });
 }
 
@@ -166,7 +179,6 @@ test.describe('Operations Tab', () => {
   test.describe.configure({ mode: 'serial' });
 
   test('loads and shows session list with session cards', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
     await setupSessionsMock(mockedPage);
     await goToOperationsTab(mockedPage);
 
@@ -186,7 +198,6 @@ test.describe('Operations Tab', () => {
   });
 
   test('camera health dashboard is visible alongside session list', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
     await setupSessionsMock(mockedPage);
     await goToOperationsTab(mockedPage);
 
@@ -204,7 +215,6 @@ test.describe('Operations Tab', () => {
   });
 
   test('clicking a session card drills down to detail view', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
     await setupSessionsMock(mockedPage);
     await setupSessionDetailMock(mockedPage);
     await goToOperationsTab(mockedPage);
@@ -229,7 +239,6 @@ test.describe('Operations Tab', () => {
   });
 
   test('back button returns to session list and camera health', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
     await setupSessionsMock(mockedPage);
     await setupSessionDetailMock(mockedPage);
     await goToOperationsTab(mockedPage);
@@ -248,22 +257,18 @@ test.describe('Operations Tab', () => {
     await expect(mockedPage.getByTestId('session-card-sess-op-001')).toBeVisible();
   });
 
-  test('error state displays actionable message when sessions API returns 500', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
-    // Override the default sessions mock with a 500 error
-    await mockedPage.unroute('**/api/v1/sessions*');
-    await mockEndpoint(mockedPage, '**/api/v1/sessions*', {
-      status: 500,
-      error: true,
-      errorMessage: 'Internal Server Error',
-    });
+  test('error state displays actionable message when sessions RPC returns 500', async ({ mockedPage }) => {
+    // Override sessions RPC with 500 error
+    await unrouteRpc(mockedPage, 'SessionService', 'ListSessions');
+    await mockRpcError(mockedPage, 'SessionService', 'ListSessions',
+      'internal', 'Internal Server Error', 500);
 
     await goToOperationsTab(mockedPage);
 
     // Error state should be visible with retry action.
     // React Query retries 3 times with exponential backoff (~7s total) before showing error.
     await expect(mockedPage.getByTestId('session-list-error')).toBeVisible({ timeout: 30000 });
-    await expect(mockedPage.getByText('Failed to load sessions')).toBeVisible();
+    await expect(mockedPage.getByText('Unable to load sessions')).toBeVisible();
 
     // Retry button should be present and actionable
     const retryButton = mockedPage.getByRole('button', { name: /retry/i });
@@ -271,8 +276,7 @@ test.describe('Operations Tab', () => {
   });
 
   test('empty state displays when no sessions exist', async ({ mockedPage }) => {
-    await setupCameraDiagnosticsMock(mockedPage);
-    // The default mock in test-base already returns empty sessions,
+    // The default RPC mock in test-base returns empty sessions,
     // so we do not need to override anything.
     await goToOperationsTab(mockedPage);
 
