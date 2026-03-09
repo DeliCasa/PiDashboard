@@ -518,6 +518,8 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven) (062-piorch-grpc-client)
 - TypeScript ~5.9.3, React 19.2.0 + `@delicasa/wire@0.4.0` (local file link), `@connectrpc/connect-web ^2.1.x`, `@bufbuild/protobuf ^2.2.x`, TanStack React Query 5.x, MSW 2.x (063-wire-vnext-integration)
 - TypeScript ~5.9.3 + React 19.2.0, TanStack React Query 5.x, @connectrpc/connect-web ^2.1.x, @delicasa/wire 0.5.0, Vitest 3.2.4, Playwright 1.57.0, MSW 2.x (064-post-deploy-validation)
+- TypeScript ~5.9.3 + Playwright 1.57.0, @connectrpc/connect-web ^2.1.x, @delicasa/wire 0.5.0 (065-live-e2e-smoke)
+- Filesystem (evidence artifacts in specs directory) (065-live-e2e-smoke)
 
 ## Recent Changes
 - 001-api-compat-integration: Added TypeScript ~5.9.3, React 19.2.0 + TanStack React Query 5.x, Zustand 5.x, Zod 3.x, Radix UI
@@ -532,6 +534,7 @@ Use `/handoff-generate` to interactively create outgoing handoffs with Claude as
 - N/A (API-driven, no local persistence for this feature) (034-esp-camera-integration)
 
 ## Recent Changes
+- 065-live-e2e-smoke: Added TypeScript ~5.9.3 + Playwright 1.57.0, @connectrpc/connect-web ^2.1.x, @delicasa/wire 0.5.0
 - 064-post-deploy-validation: RPC E2E smoke tests (sessions, evidence, cameras), transport regression tests, testing runbook
   - Created rpc-mocks.ts with inlined wire factory functions for Playwright
   - Migrated operations.spec.ts from REST to RPC mocks
