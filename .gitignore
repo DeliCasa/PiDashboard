@@ -42,5 +42,8 @@ result
 # Handoff Sentinel state
 .handoff-state.json
 
+# Evidence traces (too large for git)
+specs/*/evidence/traces/
+
 # Claude session files
 session-*.md

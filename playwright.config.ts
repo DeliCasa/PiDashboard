@@ -38,6 +38,13 @@ const liveE2E = process.env.LIVE_E2E === '1';
 const liveBaseUrl =
   process.env.LIVE_BASE_URL || 'https://raspberrypi.tail345cd5.ts.net';
 
+/**
+ * Optional live RPC mode for smoke tests against real Pi via Vite proxy.
+ * Set LIVE_RPC=1 to enable. Requires SSH tunnels to Pi:8081 and Pi:8082.
+ * Uses main vite.config.ts (with proxy) so /rpc → Pi:8081, /api → Pi:8082.
+ */
+const liveRpc = process.env.LIVE_RPC === '1';
+
 export default defineConfig({
   // Test directory
   testDir: './tests/e2e',
@@ -127,10 +134,24 @@ export default defineConfig({
       ? [
           {
             name: 'live-pi',
-            testMatch: '**/live-smoke.spec.ts',
+            testMatch: '**/live-*.spec.ts',
             use: {
               ...devices['Desktop Chrome'],
               baseURL: livePiUrl,
+            },
+          },
+        ]
+      : []),
+    // Live RPC smoke tests - only run when LIVE_RPC=1
+    // Uses Vite dev server with proxy (not direct Pi access) for RPC support
+    ...(liveRpc
+      ? [
+          {
+            name: 'live-rpc',
+            testMatch: '**/live-rpc-*.spec.ts',
+            use: {
+              ...devices['Desktop Chrome'],
+              screenshot: 'on' as const,
             },
           },
         ]
@@ -155,14 +176,17 @@ export default defineConfig({
       : []),
   ],
 
-  // Web server configuration for local development
-  // Uses e2e-specific Vite config that doesn't proxy to Pi (allows route mocking)
-  // Don't start server if testing against live Pi or live E2E
+  // Web server configuration
+  // - Mock mode (default): e2e config (no proxy) so Playwright can intercept requests
+  // - LIVE_RPC mode: main config (with proxy) so /rpc → Pi:8081, /api → Pi:8082
+  // - LIVE_PI_URL / LIVE_E2E: no server (browser hits Pi directly)
   ...(livePiUrl || liveE2E
     ? {}
     : {
         webServer: {
-          command: 'npx vite --config vite.config.e2e.ts',
+          command: liveRpc
+            ? 'npx vite'
+            : 'npx vite --config vite.config.e2e.ts',
           url: baseURL,
           reuseExistingServer: !process.env.CI,
           timeout: 60000,
